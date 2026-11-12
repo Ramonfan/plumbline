@@ -56,33 +56,9 @@ project_root=$(cd "$script_dir/.." && pwd -P)
 template_root="$project_root/templates/project-workflow"
 target_root=$(cd "$target_dir" && pwd -P)
 
-sources=(
-  'AGENTS.template.md'
-  'PROJECT_PROFILE.template.md'
-  'WORKFLOW_BASELINE.yaml'
-  'openSpec/config.template.yaml'
-  'openSpec/README.md'
-  'openSpec/weekly_report_template.md'
-  'openSpec/specs/development-workflow/spec.md'
-  'superPowers/implementation_checklist.md'
-)
+source "$script_dir/workflow-files.sh"
 
-destinations=(
-  'AGENTS.md'
-  'PROJECT_PROFILE.md'
-  'WORKFLOW_BASELINE.yaml'
-  'openSpec/config.yaml'
-  'openSpec/README.md'
-  'openSpec/weekly_report_template.md'
-  'openSpec/specs/development-workflow/spec.md'
-  'superPowers/implementation_checklist.md'
-)
-
-directory_destinations=(
-  'openSpec/changes/archive'
-)
-
-for source in "${sources[@]}"; do
+for source in "${template_sources[@]}"; do
   if [[ ! -f "$template_root/$source" ]]; then
     printf 'Template source is missing: %s\n' "$template_root/$source" >&2
     exit 70
@@ -90,13 +66,13 @@ for source in "${sources[@]}"; do
 done
 
 safety_paths=()
-for destination in "${destinations[@]}"; do
+for destination in "${installed_destinations[@]}"; do
   relative_parent=${destination%/*}
   if [[ "$relative_parent" != "$destination" ]]; then
     safety_paths+=("$relative_parent")
   fi
 done
-for directory_destination in "${directory_destinations[@]}"; do
+for directory_destination in "${installed_directories[@]}"; do
   safety_paths+=("$directory_destination")
 done
 
@@ -134,7 +110,7 @@ if ((${#unsafe_parents[@]} > 0)); then
 fi
 
 conflicts=()
-for destination in "${destinations[@]}"; do
+for destination in "${installed_destinations[@]}"; do
   destination_path="$target_root/$destination"
   if [[ -e "$destination_path" || -L "$destination_path" ]]; then
     conflicts+=("$destination")
@@ -152,10 +128,10 @@ fi
 
 printf 'Target: %s\n' "$target_root"
 printf 'Planned files:\n'
-for destination in "${destinations[@]}"; do
+for destination in "${installed_destinations[@]}"; do
   printf '  - %s\n' "$destination"
 done
-for directory_destination in "${directory_destinations[@]}"; do
+for directory_destination in "${installed_directories[@]}"; do
   printf '  - %s/ (directory)\n' "$directory_destination"
 done
 
@@ -164,14 +140,14 @@ if [[ "$dry_run" == 'true' ]]; then
   exit 0
 fi
 
-for index in "${!sources[@]}"; do
-  source_path="$template_root/${sources[$index]}"
-  destination_path="$target_root/${destinations[$index]}"
+for index in "${!template_sources[@]}"; do
+  source_path="$template_root/${template_sources[$index]}"
+  destination_path="$target_root/${installed_destinations[$index]}"
   mkdir -p "$(dirname "$destination_path")"
   cp "$source_path" "$destination_path"
 done
 
-for directory_destination in "${directory_destinations[@]}"; do
+for directory_destination in "${installed_directories[@]}"; do
   mkdir -p "$target_root/$directory_destination"
 done
 

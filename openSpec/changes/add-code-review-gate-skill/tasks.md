@@ -6,11 +6,11 @@
 
 ## 2. GREEN：创建最小可用 skill
 
-- [ ] 2.1 使用 skill-creator 初始化 `templates/project-workflow/.agents/skills/running-code-review-gate/` 及 `references`、`agents/openai.yaml`，不创建无用途资源；验证：目录只包含设计列出的文件且无 scaffold 占位。
-- [ ] 2.2 编写 `SKILL.md` 的触发描述、只读权限、事实源定位、精确范围、风险路由、审查顺序和 verdict 流程；验证：description 仅描述使用时机并以 `Use when...` 开头，正文不复制 OpenSpec 或 Superpowers 的完整规则。
-- [ ] 2.3 编写 `references/review-contract.md`，定义 Critical/Important/Minor、finding 必填字段、`Ready: Yes/No` 条件、残留风险和 OpenSpec 回写格式；验证：结构化样例能表达阻断、无 finding、证伪和待人工验收四种结果。
-- [ ] 2.4 编写 `references/reviewer-brief.md`，限定独立 reviewer 的最小输入、只读任务、审查优先级和返回结构；验证：brief 不依赖主会话历史，不包含提交或修复授权。
-- [ ] 2.5 生成并核对 `agents/openai.yaml` 的显示名称、简述和默认提示，保持隐式调用开启；验证：元数据与 SKILL.md 名称和触发范围一致。
+- [ ] 2.1 使用 skill-creator 初始化 `templates/project-workflow/.agents/skills/running-code-review-gate/` 规范源，并建立 `templates/project-workflow/.claude/skills/running-code-review-gate/` 镜像目录及两边 `references`；验证：两棵目录只包含设计列出的文件，无 scaffold 占位，`.claude` 侧不包含 `agents/openai.yaml`。
+- [ ] 2.2 编写规范源 `SKILL.md` 的触发描述、只读权限、事实源定位、精确范围、风险路由、审查顺序和 verdict 流程，并同步到 Claude 镜像；验证：description 仅描述使用时机并以 `Use when...` 开头，正文不复制 OpenSpec 或 Superpowers 的完整规则，两边 `SKILL.md` 内容一致。
+- [ ] 2.3 编写两边 `references/review-contract.md`，定义 Critical/Important/Minor、finding 必填字段、`Ready: Yes/No` 条件、残留风险和 OpenSpec 回写格式；验证：结构化样例能表达阻断、无 finding、证伪和待人工验收四种结果，两边内容一致。
+- [ ] 2.4 编写两边 `references/reviewer-brief.md`，限定独立 reviewer 的最小输入、只读任务、审查优先级和返回结构；验证：brief 不依赖主会话历史，不包含提交或修复授权，两边内容一致。
+- [ ] 2.5 生成并核对规范源 `agents/openai.yaml` 的显示名称、简述和默认提示，保持隐式调用开启；验证：元数据与 SKILL.md 名称和触发范围一致，Claude 镜像不需要该文件。
 - [ ] 2.6 使用与 1.2 相同的场景加载 skill 回归，并对关键行为 shaping 文案执行带无 guidance control 的多次微测试；验证：低风险保持本地审查，高风险路由独立审查，阻断条件稳定输出 `Ready: No`。
 
 ## 3. REFACTOR：关闭实际漏洞
@@ -22,9 +22,9 @@
 ## 4. 模板、安装和治理接线
 
 - [ ] 4.1 更新模板 `AGENTS.template.md`、`PROJECT_PROFILE.template.md`、研发流程主规格和实施检查清单，接入提交前审查门禁和项目专属规则路由；验证：各文件职责不重复，OpenSpec 仍是唯一事实源。
-- [ ] 4.2 更新 `scripts/install.sh` 的四个 skill 文件映射并保留任何冲突/不安全父路径零写入；验证：dry-run 精确列出新增文件，空目标安装文件内容与模板一致。
-- [ ] 4.3 更新 `scripts/verify.sh` 的必需文件、安装树、skill frontmatter/名称/引用/占位校验和通用核心泄漏检查；验证：先构造缺文件或非法 frontmatter 使新增检查失败，再修复模板后完整验证通过。
-- [ ] 4.4 将 `WORKFLOW_BASELINE.yaml` 升级到 `0.1.0-dev.2`；若 dev.2 已被 `add-coding-behavior-guidelines` 通过用户验收并归档占用，则升级到 dev.3，同步 README、INSTALL 和 CHANGELOG 的新增文件、兼容与人工升级说明；验证：所有版本引用一致，不宣称历史项目会自动获得 skill。
+- [ ] 4.2 更新 `scripts/install.sh`，增加 `.agents/skills/running-code-review-gate/` 和 `.claude/skills/running-code-review-gate/` 两棵目录映射，并保留任何冲突/不安全父路径零写入；验证：dry-run 精确列出新增文件，空目标安装文件内容与模板一致。
+- [ ] 4.3 更新 `scripts/verify.sh` 的必需文件、安装树、两棵 skill 目录内容比较、skill frontmatter/名称/引用/占位校验和通用核心泄漏检查；验证：先构造缺文件、非法 frontmatter 或两边内容不一致使新增检查失败，再修复模板后完整验证通过。
+- [ ] 4.4 将 `WORKFLOW_BASELINE.yaml` 升级到 `0.1.0-dev.5`（dev.2、dev.3 和 dev.4 已分别被编码行为准则、跨 agent 入口和升级路径 change 占用），同步 README、INSTALL 和 CHANGELOG 的新增文件、双入口、兼容与人工升级说明；验证：所有版本引用一致，不宣称历史项目会自动获得 skill。
 
 ## 5. 审查、自动验证和消费侧回流
 

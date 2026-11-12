@@ -5,6 +5,7 @@ context: |
   All artifacts must be written in {{DOCUMENT_LANGUAGE}}.
   Keep OpenSpec structural headings and SHALL/MUST keywords in English.
   Project: {{PROJECT_NAME}}，工作区为 {{WORKSPACE_ROOT}}。
+  Agent entry: Codex 和通用 agent 读取根目录 AGENTS.md；Claude Code 读取根目录 CLAUDE.md，并由它导入 AGENTS.md 和 PROJECT_PROFILE.md，不维护第二份规则。
   Project profile: 根目录 PROJECT_PROFILE.md 是项目边界、技术栈、命令和验收方式的权威入口。
   OpenSpec 是需求、行为规格、技术设计、任务进度、验收证据和归档的唯一事实源。
   Superpowers 只提供测试驱动开发、系统化调试、代码审查和完成前验证。

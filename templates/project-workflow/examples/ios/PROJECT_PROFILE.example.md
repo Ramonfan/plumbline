@@ -10,6 +10,7 @@
 - 文档语言：简体中文。
 - 工作区根目录：`.`。
 - 默认 OpenSpec schema：`spec-driven`。
+- Agent 入口：`AGENTS.md`（Codex/通用 agent）和 `CLAUDE.md`（Claude Code，导入 `AGENTS.md` 与 `PROJECT_PROFILE.md`）。
 
 ## 2. 工作区与 Git 仓库边界
 
@@ -32,7 +33,7 @@
 | 自动化测试 | `ios-app/AppTests/` | 单元和集成测试 |
 | 依赖声明 | `ios-app/Podfile`、各组件 podspec | CocoaPods 依赖入口 |
 | 生成产物 | `ios-app/Pods/`、`DerivedData/` | 不直接修改或提交 |
-| 工作流文档 | `openSpec/`、`AGENTS.md`、`PROJECT_PROFILE.md` | 规格、规则和证据 |
+| 工作流文档 | `openSpec/`、`AGENTS.md`、`CLAUDE.md`、`PROJECT_PROFILE.md` | 规格、规则和证据 |
 
 ## 4. 技术栈与依赖
 

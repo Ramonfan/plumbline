@@ -4,7 +4,8 @@ context: |
   Language: 简体中文
   All artifacts must be written in 简体中文.
   Keep OpenSpec structural headings and SHALL/MUST keywords in English.
-  Project: AI 工作流，维护可复用的 OpenSpec + Superpowers + Codex 项目工作流模板。
+  Project: Plumbline（准绳），维护可复用的 OpenSpec + Superpowers 项目工作流模板，支持 Codex、Claude Code 等 agent。
+  Agent entry: Codex 和通用 agent 读取根目录 AGENTS.md；Claude Code 读取根目录 CLAUDE.md，并由它导入 AGENTS.md 和 PROJECT_PROFILE.md，不维护第二份规则。
   Project profile: 根目录 PROJECT_PROFILE.md 是目录、命令、验证和发布约束的权威入口。
   OpenSpec 是需求、行为规格、技术设计、任务进度、验收证据和归档的唯一事实源。
   Superpowers 只提供测试驱动开发、系统化调试、代码审查和完成前验证。

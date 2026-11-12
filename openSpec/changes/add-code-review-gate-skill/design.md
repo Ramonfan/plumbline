@@ -6,7 +6,8 @@
 
 **Goals:**
 
-- 交付一个跨技术栈、自动可发现、只读且能产出二元 verdict 的代码审查门禁 skill。
+- 交付一个跨技术栈、跨 agent、自动可发现、只读且能产出二元 verdict 的代码审查门禁 skill。
+- 同时提供 Codex/通用 agent 的 `.agents/skills/` 入口和 Claude Code 的 `.claude/skills/` 入口，共享同一份技能内容。
 - 复用 OpenSpec 事实源和 Superpowers 审查能力，避免建立第二套需求或反馈处理规则。
 - 保持 L1 本地审查和高风险独立审查的差异，支持多仓和项目专属适配。
 - 把 skill 纳入安全安装、结构验证、版本基线、变更日志和消费项目升级路径。
@@ -29,10 +30,13 @@
 
 计划文件：
 
-- `SKILL.md`：触发条件、只读边界、门禁主流程、风险路由和所需参考。
-- `references/review-contract.md`：严重级别、finding 字段、verdict 条件和 OpenSpec 回写格式。
-- `references/reviewer-brief.md`：高风险独立 reviewer 的最小上下文模板。
-- `agents/openai.yaml`：显示名称、简述和默认提示，保持隐式调用开启。
+- `.agents/skills/running-code-review-gate/SKILL.md`：规范源，供 Codex 和通用 agent 发现；包含触发条件、只读边界、门禁主流程、风险路由和所需参考。
+- `.agents/skills/running-code-review-gate/references/review-contract.md`：严重级别、finding 字段、verdict 条件和 OpenSpec 回写格式。
+- `.agents/skills/running-code-review-gate/references/reviewer-brief.md`：高风险独立 reviewer 的最小上下文模板。
+- `.agents/skills/running-code-review-gate/agents/openai.yaml`：Codex 显示名称、简述和默认提示，保持隐式调用开启。
+- `.claude/skills/running-code-review-gate/`：Claude Code 镜像入口，包含相同的 `SKILL.md` 和两个 references；不包含 `agents/openai.yaml`。
+
+`.agents/skills/` 是规范源，`.claude/skills/` 是受验证的镜像。`scripts/verify.sh` 使用目录比较确保两边内容一致，防止漂移；安装器把两棵目录都映射到目标项目。这样 Codex 和 Claude Code 都能自动发现技能，又不需要维护两套不同正文。
 
 项目专属审查点不进入这些通用文件；skill 必须读取根规则、`PROJECT_PROFILE.md` 和实际触及的领域规格。消费项目可以在不改变通用行为的前提下增加本地 reference，并在根规则中声明路由。
 
@@ -56,21 +60,22 @@ GREEN 阶段用同一场景验证，REFACTOR 阶段只针对实际出现的新�
 
 ### 5. 安装、验证和版本处理
 
-`scripts/install.sh` 的显式映射增加四个 skill 文件，现有父路径预检会自然覆盖 `.agents/skills/...`；冲突仍在任何写入前统一停止。`scripts/verify.sh` 同步更新必需文件、安装映射、精确树和通用核心泄漏检查，并增加 frontmatter、名称、引用目标和未完成占位校验。
+`scripts/install.sh` 的显式映射增加 `.agents/skills/running-code-review-gate/` 和 `.claude/skills/running-code-review-gate/` 两棵目录，现有父路径预检会自然覆盖；冲突仍在任何写入前统一停止。`scripts/verify.sh` 同步更新必需文件、安装映射、精确树、两棵目录内容比较和通用核心泄漏检查，并增加 frontmatter、名称、引用目标和未完成占位校验。
 
-开发环境额外运行 skill-creator 的 `quick_validate.py`；统一 `verify.sh` 不依赖用户主目录中的 Codex 工具，以保持模板项目可移植。`WORKFLOW_BASELINE.yaml` 的下一预发布基线为 `0.1.0-dev.2`；若 `add-coding-behavior-guidelines` 已通过用户验收并归档（即占用 dev.2），则本 change 使用 dev.3，避免不同模板状态共享同一版本。CHANGELOG 记录新增文件和历史项目人工升级要求。
+开发环境额外运行 skill-creator 的 `quick_validate.py`；统一 `verify.sh` 不依赖用户主目录中的 Codex 工具，以保持模板项目可移植。`0.1.0-dev.5` 是本 change 的未发布基线：`dev.2` 已被编码行为准则 change 占用，`dev.3` 已被跨 agent 入口 change 占用，`dev.4` 已被升级路径 change 占用。CHANGELOG 记录新增文件、双入口和历史项目人工升级要求。
 
 ### 6. 影响入口、职责与数据契约
 
 - 入口：用户请求审查、准备提交/合并、准备声明实现完成，或 tasks 进入审查步骤。
-- 调用方：消费项目的 Codex 实现流程。
+- 调用方：消费项目的 Codex、Claude Code 或通用 agent 实现流程。
 - 被调用方：OpenSpec CLI、各实际仓库的只读 Git 命令、项目规则/规格、Superpowers 审查与反馈接收能力；高风险时调用独立 reviewer。
 - 数据契约：change、任务等级、提交范围、仓库列表、需求映射、验证引用、findings、残留风险、人工验收和 `Ready`。
-- 文件映射：权威源位于 `templates/project-workflow/.agents/skills/running-code-review-gate/`，安装目标保持同路径。
+- 文件映射：规范源位于 `templates/project-workflow/.agents/skills/running-code-review-gate/`，Claude Code 镜像位于 `templates/project-workflow/.claude/skills/running-code-review-gate/`；安装目标保持同路径，并由验证器比较两边内容。
 
 ## Risks / Trade-offs
 
-- [skill 无法像 CI 一样物理阻止人工 Git 提交] → 明确第一阶段是 Codex 工作流门禁；平台强制执行另建 change。
+- [skill 无法像 CI 一样物理阻止人工 Git 提交] → 明确第一阶段是 agent 工作流门禁；平台强制执行另建 change。
+- [两棵技能目录内容漂移] → `.agents/skills/` 为规范源，`.claude/skills/` 为镜像；`verify.sh` 使用目录比较强制一致。
 - [模板文件和安装树扩大，冲突概率增加] → 保持全部预检和零写入，历史项目只支持人工比较合并。
 - [独立 reviewer 消耗上下文或误读项目] → 仅在风险要求时使用，采用干净的最小 reviewer brief，findings 必须经项目事实核验。
 - [通用 skill 过度抽象而漏掉技术栈风险] → 强制读取根规则、项目配置和触及领域规格；技术栈示例继续留在 `examples/` 或消费项目。

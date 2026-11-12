@@ -1,12 +1,14 @@
-# AI 工作流项目配置
+# Plumbline（准绳）项目配置
 
 ## 项目身份
 
-- 项目名称：AI 工作流。
+- 项目名称：Plumbline（准绳）。
 - 目标：维护可复制、可验证、不会覆盖目标文件的项目治理模板。
 - 文档语言：简体中文；OpenSpec 结构标题和 SHALL/MUST 保留英文。
-- 工作区根目录：当前项目目录。
-- 当前 Git 状态：未初始化；不得据此推断未来版本管理方式。
+- Agent 入口：`AGENTS.md`（Codex/通用 agent）和 `CLAUDE.md`（Claude Code，导入 `AGENTS.md` 与 `PROJECT_PROFILE.md`）。
+- 工作区根目录：当前项目目录（目录名 `plumbline`）。
+- 项目标识：英文 `Plumbline`，中文「准绳」，建议仓库标识 `plumbline`。
+- 当前 Git 状态：已初始化，默认分支 `main`，已有初始提交；不得据此推断远程仓库或发布方式。
 
 ## 权威来源与回流
 
@@ -20,8 +22,12 @@
 | 路径 | 职责 |
 |---|---|
 | `templates/project-workflow/` | 对外复用模板的权威版本 |
+| `templates/project-workflow/CLAUDE.template.md` | Claude Code 入口模板，只导入 `AGENTS.md` 和 `PROJECT_PROFILE.md` |
+| `CLAUDE.md` | 本项目 Claude Code 入口，内容为同一薄适配 |
 | `templates/project-workflow/WORKFLOW_BASELINE.yaml` | 对外模板的机器可读版本基线 |
 | `scripts/install.sh` | 安全安装到目标项目，不覆盖同名文件 |
+| `scripts/compare.sh` | 只读比较已接入项目与模板差异，不写入任何目录 |
+| `scripts/workflow-files.sh` | `install.sh`、`compare.sh` 和 `verify.sh` 共享的安装映射 |
 | `scripts/verify.sh` | 校验项目、模板、脚本和 OpenSpec |
 | `openSpec/specs/` | 长期工作流能力规格 |
 | `openSpec/changes/` | 活跃 change 与实施证据 |
@@ -30,7 +36,7 @@
 ## 技术与依赖
 
 - 文件类型：Markdown、YAML、POSIX 风格 shell。
-- 必需工具：`bash`、`find`、`rg`、`ruby`、OpenSpec CLI。
+- 必需工具：`bash`、`find`、`rg`、`ruby`、OpenSpec CLI，以及 `sort`、`cksum`、`cmp`、`readlink`、`ln`、`mktemp` 等常用 POSIX 工具。
 - 模板不得依赖业务项目源码、包管理器或构建系统。
 - iOS 等技术栈内容只能位于对应示例目录。
 
@@ -39,21 +45,26 @@
 | 目的 | 命令 | 成功标准 |
 |---|---|---|
 | 完整校验 | `./scripts/verify.sh` | 退出码 0 并输出 `ALL_CHECKS_PASSED` |
-| 验证依赖前置 | `for c in bash find rg ruby openspec; do command -v "$c" >/dev/null || exit 1; done` | 所有命令均可解析；缺失时 `verify.sh` 以状态 `69` 退出 |
-| Shell 语法 | `bash -n scripts/install.sh scripts/verify.sh` | 退出码 0 |
+| 验证依赖前置 | `for c in bash find rg ruby openspec sort cksum cmp readlink ln mktemp; do command -v "$c" >/dev/null || exit 1; done` | 所有命令均可解析；缺失时 `verify.sh` 以状态 `69` 退出 |
+| Shell 语法 | `bash -n scripts/install.sh scripts/verify.sh scripts/compare.sh scripts/workflow-files.sh` | 退出码 0 |
+| 升级比较 | `./scripts/compare.sh --target /path/to/consumer --base /path/to/old-template` | 退出码 0，逐文件输出分类，目标、base 与模板目录零写入 |
+| Agent 入口 | `test -f AGENTS.md && test -f CLAUDE.md && rg -F -q '@AGENTS.md' CLAUDE.md && rg -F -q '@PROJECT_PROFILE.md' CLAUDE.md` | 两个入口存在，`CLAUDE.md` 含两个导入 |
 | OpenSpec 环境 | `openspec context && openspec doctor` | 根目录识别正常，无结构错误 |
 | 研发流程规格 | `openspec validate development-workflow --type spec --strict` | 输出 valid |
 | 模板治理规格 | `openspec validate portable-project-workflow --type spec --strict` | 输出 valid |
 
 ## 验收矩阵
 
-- 依赖前置：缺少 `bash`、`find`、`rg`、`ruby` 或 OpenSpec CLI 时，统一校验以状态 `69` 退出且不创建临时目录。
+- 依赖前置：缺少 `bash`、`find`、`rg`、`ruby`、OpenSpec CLI 或其余必需 POSIX 工具时，统一校验以状态 `69` 退出且不创建临时目录。
 - 安装预览：目标目录无文件变化。
+- 跨 agent 入口：根目录和安装结果同时包含 `AGENTS.md` 与 `CLAUDE.md`；`CLAUDE.md` 只导入，不复制规则。
 - 空目标安装：生成完整文件映射和基线文件，保留模板占位符等待项目填写。
 - 冲突目标：列出全部冲突、状态码为 2、目标目录树零新增零修改。
 - 符号链接父路径：列出不安全路径、状态码为 73、目标目录和链接指向位置零新增零修改。
 - 非目录父路径：列出不安全路径、状态码为 73、目标目录树零新增零修改。
 - 模板验证：文件清单、基线字段、Markdown、YAML、占位符和技术示例隔离通过；默认与自定义临时目录均可重复执行并清理产物。
+- 升级比较：`unchanged`、`ours-only`、`theirs-only`、`both-changed`、`converged`、`missing`、`base-missing` 和两方 `differs` 输出正确；项目专属文件带 `manual: project-specific`；比较前后目标、base 和模板目录快照一致。
+- 比较参数：缺少 `--target` 或未知参数返回 `64`；目标或 base 无效返回 `66`；模板源缺失返回 `70`；差异存在仍返回 `0`。
 - 复制阶段异常：明确不具备事务回滚保证，必须检查目标实际目录树并人工处理部分新增文件。
 - OpenSpec：项目 context、doctor 和两份长期主规格 strict validation 通过。
 
@@ -67,6 +78,7 @@
 ## 禁止操作
 
 - 安装脚本不得覆盖、删除或修改目标项目已有文件。
+- 比较脚本不得写入目标项目、旧模板快照或模板目录，不得提供自动覆盖或自动合并开关。
 - 不把真实凭据、业务专名、本机用户目录或项目私有地址写入模板。
 - 未经用户授权不执行 `git init`、提交、推送、发布或远端操作。
 - 结构校验不得冒充目标项目真实构建、测试或人工验收。

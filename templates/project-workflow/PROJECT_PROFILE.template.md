@@ -10,6 +10,7 @@
 - 文档语言：{{DOCUMENT_LANGUAGE}}
 - 工作区根目录：`{{WORKSPACE_ROOT}}`
 - 默认 OpenSpec schema：`spec-driven`
+- Agent 入口：`AGENTS.md`（Codex/通用 agent）和 `CLAUDE.md`（Claude Code，导入 `AGENTS.md` 与 `PROJECT_PROFILE.md`）
 
 ### 权威工作流来源（必填）
 
@@ -157,6 +158,7 @@
 ## 11. 安装完成检查
 
 - [ ] 全文件无双花括号占位符。
+- [ ] `AGENTS.md` 和 `CLAUDE.md` 均存在；`CLAUDE.md` 只导入 `AGENTS.md` 与 `PROJECT_PROFILE.md`，未复制规则。
 - [ ] 仓库和目录路径已核实。
 - [ ] 标准命令在对应环境可执行，或明确标记为不适用。
 - [ ] 人工验收责任人与环境已确认。

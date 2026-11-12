@@ -1,6 +1,6 @@
 # {{PROJECT_NAME}} 项目协作与交付约束
 
-本文件是项目根级执行约束。开始任何任务前，先读取本文件和根目录 `PROJECT_PROFILE.md`；进入子目录时，再叠加该目录更细的 `AGENTS.md`。规则冲突时，用户当前明确指令优先，其次是更具体目录规则，再其次是根级规则。
+本文件是项目根级执行约束。开始任何任务前，先读取本文件和根目录 `PROJECT_PROFILE.md`；进入子目录时，再叠加该目录更细的 `AGENTS.md`。Codex 会沿目录向上扫描 `AGENTS.md`；Claude Code 通过根 `CLAUDE.md` 导入根 `AGENTS.md`，默认只读 `CLAUDE.md` 链路，子目录 `AGENTS.md` 需在该子目录提供薄 `CLAUDE.md` 或启用 `claude-md-and-agents-md` 才会一并加载。规则冲突时，用户当前明确指令优先，其次是更具体目录规则，再其次是根级规则。
 
 ## OpenSpec、Superpowers 与执行者职责
 

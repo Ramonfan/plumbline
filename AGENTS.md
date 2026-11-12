@@ -1,10 +1,11 @@
-# AI 工作流项目协作约束
+# Plumbline（准绳）项目协作约束
 
-本项目用于维护可复用的 OpenSpec + Superpowers + Codex 项目工作流。开始任务前先读取本文件和 `PROJECT_PROFILE.md`，再读取目标 change 与相关长期主规格。
+本项目用于维护可复用的 OpenSpec + Superpowers 项目工作流，支持 Codex、Claude Code 等 agent。Codex 和通用 agent 读取根目录 `AGENTS.md`；Claude Code 读取根目录 `CLAUDE.md`，并由它导入 `AGENTS.md` 和 `PROJECT_PROFILE.md`。开始任务前先读取本文件和 `PROJECT_PROFILE.md`，再读取目标 change 与相关长期主规格。
 
 ## 职责与事实源
 
 - OpenSpec 管理需求、行为规格、技术设计、任务进度、验证证据和归档，是唯一事实源。
+- `AGENTS.md` 是流程规则事实源；`PROJECT_PROFILE.md` 是项目边界、命令和验收配置事实源；`CLAUDE.md` 只做导入适配，不维护第二套规则。
 - Superpowers 只参与测试、系统化调试、代码审查和完成前验证。
 - `templates/project-workflow/` 是对外安装模板的权威版本。
 - `PROJECT_PROFILE.md` 定义本项目目录、命令、验证和发布约束。
@@ -24,6 +25,8 @@
 - 根级文件维护本项目自身，不直接复制给业务项目。
 - `templates/project-workflow/` 只包含可复制到目标项目的通用文件和明确标记的示例。
 - `scripts/install.sh` 不得提供覆盖目标文件的能力；存在任一冲突时必须零写入退出。
+- `scripts/compare.sh` 必须是只读比较，不写入目标项目、旧模板快照或模板目录；差异存在时仍报告成功，不能提供自动升级或自动合并开关。
+- 安装文件映射由 `scripts/workflow-files.sh` 统一维护，`install.sh`、`compare.sh` 和 `verify.sh` 不得各自复制一份。
 - `scripts/verify.sh` 必须可以在项目根目录重复执行，不依赖本机绝对路径或当前业务项目。
 - `openSpec/specs/` 只保存长期有效的工作流能力；具体修改通过 `openSpec/changes/` 管理。
 - 不把某个业务项目的模块、类名、接口、产品规则、账号、令牌或本机路径写入通用模板。
@@ -32,10 +35,11 @@
 
 1. 定位或创建 OpenSpec change，按风险生成工件。
 2. 用户通过方案门禁后修改根项目、模板或脚本。
-3. 模板规则变化时同步检查 AGENTS 模板、项目配置模板、OpenSpec 配置、主规格、README、安装文档和实施清单。
+3. 模板规则变化时同步检查 AGENTS 模板、CLAUDE 入口模板、项目配置模板、OpenSpec 配置、主规格、README、安装文档和实施清单。
 4. 安装行为变化时必须验证预览、空目标安装和冲突零写入。
-5. 运行 `scripts/verify.sh` 和对应 OpenSpec strict validation，将证据回写 tasks。
-6. 更新 `CHANGELOG.md`；用户结构验收后同步规格并归档。
+5. 升级能力变化时必须验证只读比较、分类正确性、两方降级提示和项目专属文件人工处理标记；不得引入自动覆盖。
+6. 运行 `scripts/verify.sh` 和对应 OpenSpec strict validation，将证据回写 tasks。
+7. 更新 `CHANGELOG.md`；用户结构验收后同步规格并归档。
 
 ## 消费项目改进回流
 
@@ -56,8 +60,9 @@
 
 - Markdown：检查代码围栏闭合、必需章节和无业务专名泄漏。
 - YAML：执行解析，并通过 OpenSpec context、doctor 和 strict validation。
-- Shell：执行 `bash -n`，并覆盖预览、正常安装、冲突拒绝和重复运行。
-- 模板：检查必需文件、占位符范围、通用核心与技术示例隔离。
+- Shell：执行 `bash -n`，并覆盖预览、正常安装、冲突拒绝、重复运行和比较脚本分类/只读行为。
+- 升级：验证 `compare.sh` 的一致、仅本地、仅模板、双方、收敛、缺失、base 缺失和两方降级输出；确认目标、base 与模板目录在比较前后完全一致。
+- 模板：检查必需文件、占位符范围、通用核心与技术示例隔离，以及 `AGENTS.md`/`CLAUDE.md` 两个入口的存在和导入一致性。
 - 交付：说明实际文件、命令、退出码、未覆盖项和当前 Git 状态。
 
 ## 版本与兼容

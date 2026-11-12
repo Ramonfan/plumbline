@@ -4,6 +4,12 @@ OpenSpec 是项目管理需求、行为规格、技术设计、任务进度、�
 
 项目技术栈、仓库边界、命令和人工验收方式见根目录 `PROJECT_PROFILE.md`。
 
+## Agent 入口
+
+- Codex 和通用 agent：读取根目录 `AGENTS.md`，获得完整项目规则。
+- Claude Code：读取根目录 `CLAUDE.md`，它导入 `AGENTS.md` 和 `PROJECT_PROFILE.md`，不维护第二份规则。
+- 新增其他 agent 时沿用同一模式：只增加导入入口，不复制规则事实源。
+
 ## 目录结构
 
 ```text
@@ -139,6 +145,10 @@ openspec archive <change-name>
 ```
 
 纯文档或配置 change 应明确说明未运行项目构建的原因，不得为了形式启动无关构建。
+
+## 升级工作流
+
+已接入项目不会自动跟随模板更新。升级时在权威项目检出目标版本，运行其只读 `scripts/compare.sh --target <本项目> --base <旧基线快照>`，再由本项目创建 change、人工合并、执行真实项目验证和用户验收；验收后才能更新 `WORKFLOW_BASELINE.yaml` 和 `PROJECT_PROFILE.md` 记录的接入基线。不要把权威模板直接复制覆盖本项目。
 
 ## 周报
 

@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-for required_command in bash find rg ruby openspec; do
+for required_command in bash find rg ruby openspec sort cksum cmp readlink ln mktemp; do
   if ! command -v "$required_command" >/dev/null 2>&1; then
     printf 'Required command not found: %s\n' "$required_command" >&2
     exit 69
@@ -13,8 +13,11 @@ script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 project_root=$(cd "$script_dir/.." && pwd -P)
 template_root="$project_root/templates/project-workflow"
 
+source "$script_dir/workflow-files.sh"
+
 required_project_files=(
   'AGENTS.md'
+  'CLAUDE.md'
   'PROJECT_PROFILE.md'
   'README.md'
   'CHANGELOG.md'
@@ -25,10 +28,13 @@ required_project_files=(
   'openSpec/specs/portable-project-workflow/spec.md'
   'scripts/install.sh'
   'scripts/verify.sh'
+  'scripts/compare.sh'
+  'scripts/workflow-files.sh'
 )
 
 required_template_files=(
   'AGENTS.template.md'
+  'CLAUDE.template.md'
   'PROJECT_PROFILE.template.md'
   'WORKFLOW_BASELINE.yaml'
   'INSTALL.md'
@@ -49,17 +55,41 @@ for relative_path in "${required_template_files[@]}"; do
   test -s "$template_root/$relative_path"
 done
 
-bash -n "$project_root/scripts/install.sh" "$project_root/scripts/verify.sh"
+bash -n "$project_root/scripts/install.sh" "$project_root/scripts/verify.sh" "$project_root/scripts/compare.sh" "$project_root/scripts/workflow-files.sh"
 
-ruby -e 'require "yaml"; YAML.load_file(ARGV.fetch(0)); YAML.load_file(ARGV.fetch(1)); baseline = YAML.load_file(ARGV.fetch(2)); abort("Invalid baseline schema_version") unless baseline["schema_version"] == 1; abort("Invalid workflow_version") unless baseline["workflow_version"] == "0.1.0-dev.2"; abort("Invalid authority_name") unless baseline["authority_name"] == "AI 工作流"' \
+ruby -e 'require "yaml"; YAML.load_file(ARGV.fetch(0)); YAML.load_file(ARGV.fetch(1)); baseline = YAML.load_file(ARGV.fetch(2)); abort("Invalid baseline schema_version") unless baseline["schema_version"] == 1; abort("Invalid workflow_version") unless baseline["workflow_version"] == "0.1.0-dev.4"; abort("Invalid authority_name") unless baseline["authority_name"] == "Plumbline"' \
   "$project_root/openSpec/config.yaml" \
   "$template_root/openSpec/config.template.yaml" \
   "$template_root/WORKFLOW_BASELINE.yaml"
 
-ruby -e 'Dir.glob(File.join(ARGV.fetch(0), "**", "*.md")).each { |file| count = File.readlines(file).count { |line| line.start_with?("```") }; abort("Unclosed Markdown fence: #{file}") if count.odd? }' \
-  "$project_root"
+identity_files=(
+  "$project_root/AGENTS.md"
+  "$project_root/PROJECT_PROFILE.md"
+  "$project_root/README.md"
+  "$project_root/openSpec/config.yaml"
+  "$project_root/openSpec/README.md"
+  "$template_root/INSTALL.md"
+)
 
-placeholder_files=$(rg -l '\{\{[A-Z0-9_]+\}\}' "$template_root" | sort)
+for identity_file in "${identity_files[@]}"; do
+  if ! rg -F -q 'Plumbline' "$identity_file"; then
+    printf 'Project identity file does not use the official name: %s\n' "$identity_file" >&2
+    exit 1
+  fi
+done
+
+if rg -n -F 'AI 工作流' "${identity_files[@]}"; then
+  printf 'Stale project name remains in an identity file.\n' >&2
+  exit 1
+fi
+
+ruby -e '
+  files = Dir.glob(File.join(ARGV.fetch(0), "**", "*.md"), File::FNM_DOTMATCH)
+  files.reject! { |file| file.include?("/.git/") }
+  files.each { |file| count = File.readlines(file).count { |line| line.start_with?("```") }; abort("Unclosed Markdown fence: #{file}") if count.odd? }
+' "$project_root"
+
+placeholder_files=$(rg -l --hidden --glob '!**/.git/**' '\{\{[A-Z0-9_]+\}\}' "$template_root" | sort || true)
 expected_placeholder_files=$(printf '%s\n' \
   "$template_root/AGENTS.template.md" \
   "$template_root/PROJECT_PROFILE.template.md" \
@@ -71,13 +101,14 @@ if [[ "$placeholder_files" != "$expected_placeholder_files" ]]; then
   exit 1
 fi
 
-if rg -n 'NNIM|NNLightWeb|JXPaging|PUBG|战力|荣耀勋章|荣誉勋章|语音房|社区房间|App改造|nnios' "$template_root"; then
+if rg -n --hidden --glob '!**/.git/**' 'NNIM|NNLightWeb|JXPaging|PUBG|战力|荣耀勋章|荣誉勋章|语音房|社区房间|App改造|nnios' "$template_root"; then
   printf 'Business-specific content leaked into the reusable template.\n' >&2
   exit 1
 fi
 
 core_files=(
   "$template_root/AGENTS.template.md"
+  "$template_root/CLAUDE.template.md"
   "$template_root/PROJECT_PROFILE.template.md"
   "$template_root/openSpec/config.template.yaml"
   "$template_root/openSpec/README.md"
@@ -91,6 +122,50 @@ if rg -n 'CocoaPods|iphoneos|UIKit|Swift|Objective-C|Xcode|Podfile|podspec' "${c
   exit 1
 fi
 
+ruby -e '
+  def check_imports(path, expected)
+    fence = nil
+    found = Hash.new(0)
+    File.readlines(path, chomp: true).each do |line|
+      if fence
+        fence = nil if line.start_with?(fence)
+        next
+      end
+      if line.start_with?("```") || line.start_with?("~~~")
+        fence = line.start_with?("```") ? "```" : "~~~"
+        next
+      end
+      next if line.start_with?("    ") || line.start_with?("\t")
+      found[line] += 1 if expected.key?(line)
+    end
+    expected.each_key do |line|
+      abort("Expected exactly one column-0 #{line} import in #{path}") unless found[line] == 1
+    end
+  end
+  imports = { "@AGENTS.md" => true, "@PROJECT_PROFILE.md" => true }
+  check_imports(ARGV.fetch(0), imports)
+  check_imports(ARGV.fetch(1), imports)
+' "$project_root/CLAUDE.md" "$template_root/CLAUDE.template.md"
+
+if ! cmp -s "$project_root/CLAUDE.md" "$template_root/CLAUDE.template.md"; then
+  printf 'Root CLAUDE.md and template CLAUDE.template.md differ.\n' >&2
+  exit 1
+fi
+
+ruby -e '
+  def headings(path)
+    File.readlines(path, chomp: true).grep(/^[#]{2,3} /)
+  end
+  def body_lines(path)
+    File.readlines(path, chomp: true).map(&:strip).reject { |line| line.empty? || line.start_with?("#") }
+  end
+  abort("CLAUDE template is too large for a thin entry") if File.readlines(ARGV.fetch(1)).length > 60
+  duplicated = headings(ARGV.fetch(0)) & headings(ARGV.fetch(1))
+  abort("CLAUDE template duplicates AGENTS headings: #{duplicated.join(", ")}") unless duplicated.empty?
+  duplicated_body = body_lines(ARGV.fetch(0)) & body_lines(ARGV.fetch(1))
+  abort("CLAUDE template copies AGENTS body lines: #{duplicated_body.join(" | ")}") unless duplicated_body.empty?
+' "$template_root/AGENTS.template.md" "$template_root/CLAUDE.template.md"
+
 tmp_base=${TMPDIR:-/tmp}
 if [[ ! -d "$tmp_base" || ! -w "$tmp_base" || ! -x "$tmp_base" ]]; then
   printf 'Temporary directory is missing, not writable, or not searchable: %s\n' "$tmp_base" >&2
@@ -100,13 +175,13 @@ if ! tmp_base=$(cd "$tmp_base" && pwd -P); then
   printf 'Unable to resolve temporary directory: %s\n' "$tmp_base" >&2
   exit 73
 fi
-if ! tmp_root=$(mktemp -d "$tmp_base/ai-workflow-verify.XXXXXX"); then
+if ! tmp_root=$(mktemp -d "$tmp_base/plumbline-verify.XXXXXX"); then
   printf 'Unable to create verification directory under: %s\n' "$tmp_base" >&2
   exit 73
 fi
 cleanup() {
   case "$tmp_root" in
-    "$tmp_base"/ai-workflow-verify.*)
+    "$tmp_base"/plumbline-verify.*)
       if [[ -d "$tmp_root" ]]; then
         rm -rf -- "$tmp_root"
       fi
@@ -134,42 +209,21 @@ snapshot_tree() {
   )
 }
 
-template_sources=(
-  'AGENTS.template.md'
-  'PROJECT_PROFILE.template.md'
-  'WORKFLOW_BASELINE.yaml'
-  'openSpec/config.template.yaml'
-  'openSpec/README.md'
-  'openSpec/weekly_report_template.md'
-  'openSpec/specs/development-workflow/spec.md'
-  'superPowers/implementation_checklist.md'
-)
-
-installed_destinations=(
-  'AGENTS.md'
-  'PROJECT_PROFILE.md'
-  'WORKFLOW_BASELINE.yaml'
-  'openSpec/config.yaml'
-  'openSpec/README.md'
-  'openSpec/weekly_report_template.md'
-  'openSpec/specs/development-workflow/spec.md'
-  'superPowers/implementation_checklist.md'
-)
-
 dry_target="$tmp_root/dry-target"
 install_target="$tmp_root/install-target"
 partial_target="$tmp_root/partial-target"
+claude_only_target="$tmp_root/claude-only-target"
 symlink_target="$tmp_root/symlink-target"
 symlink_external="$tmp_root/symlink-external"
 blocked_parent_target="$tmp_root/blocked-parent-target"
-mkdir -p "$dry_target" "$install_target" "$partial_target/openSpec" "$symlink_target" "$symlink_external" "$blocked_parent_target"
+mkdir -p "$dry_target" "$install_target" "$partial_target/openSpec" "$claude_only_target" "$symlink_target" "$symlink_external" "$blocked_parent_target"
 
 dry_output=$("$project_root/scripts/install.sh" --target "$dry_target" --dry-run)
-if find "$dry_target" -mindepth 1 -print -quit | grep -q .; then
+if [[ -n "$(find "$dry_target" -mindepth 1 -print -quit)" ]]; then
   printf 'Dry run wrote files unexpectedly.\n' >&2
   exit 1
 fi
-actual_planned=$(printf '%s\n' "$dry_output" | rg '^  - ')
+actual_planned=$(printf '%s\n' "$dry_output" | rg '^  - ' || true)
 expected_planned=$(printf '  - %s\n' "${installed_destinations[@]}" 'openSpec/changes/archive/ (directory)')
 if [[ "$actual_planned" != "$expected_planned" ]]; then
   printf 'Dry run plan did not match the exact install mapping.\nExpected:\n%s\nActual:\n%s\n' \
@@ -191,6 +245,7 @@ actual_install_tree=$(
 )
 expected_install_tree=$(printf '%s\n' \
   './AGENTS.md' \
+  './CLAUDE.md' \
   './PROJECT_PROFILE.md' \
   './WORKFLOW_BASELINE.yaml' \
   './openSpec' \
@@ -211,6 +266,7 @@ if [[ "$actual_install_tree" != "$expected_install_tree" ]]; then
 fi
 
 printf 'existing AGENTS\n' >"$partial_target/AGENTS.md"
+printf 'existing CLAUDE\n' >"$partial_target/CLAUDE.md"
 printf 'existing config\n' >"$partial_target/openSpec/config.yaml"
 before_partial=$(snapshot_tree "$partial_target")
 set +e
@@ -221,7 +277,7 @@ if [[ $partial_status -ne 2 ]]; then
   printf 'Partial conflict installation returned %s instead of 2.\n' "$partial_status" >&2
   exit 1
 fi
-for conflict in AGENTS.md openSpec/config.yaml; do
+for conflict in AGENTS.md CLAUDE.md openSpec/config.yaml; do
   if ! rg -F -q "  - $conflict" "$tmp_root/partial.err"; then
     printf 'Partial conflict output omitted: %s\n' "$conflict" >&2
     exit 1
@@ -230,6 +286,26 @@ done
 after_partial=$(snapshot_tree "$partial_target")
 if [[ "$before_partial" != "$after_partial" ]]; then
   printf 'Partial conflict installation changed the target tree.\n' >&2
+  exit 1
+fi
+
+printf 'existing CLAUDE only\n' >"$claude_only_target/CLAUDE.md"
+before_claude_only=$(snapshot_tree "$claude_only_target")
+set +e
+"$project_root/scripts/install.sh" --target "$claude_only_target" >"$tmp_root/claude-only.out" 2>"$tmp_root/claude-only.err"
+claude_only_status=$?
+set -e
+if [[ $claude_only_status -ne 2 ]]; then
+  printf 'CLAUDE-only conflict installation returned %s instead of 2.\n' "$claude_only_status" >&2
+  exit 1
+fi
+if ! rg -F -q '  - CLAUDE.md' "$tmp_root/claude-only.err"; then
+  printf 'CLAUDE-only conflict output omitted: CLAUDE.md\n' >&2
+  exit 1
+fi
+after_claude_only=$(snapshot_tree "$claude_only_target")
+if [[ "$before_claude_only" != "$after_claude_only" ]]; then
+  printf 'CLAUDE-only conflict installation changed the target tree.\n' >&2
   exit 1
 fi
 
@@ -251,6 +327,157 @@ done
 after_repeat=$(snapshot_tree "$install_target")
 if [[ "$before_repeat" != "$after_repeat" ]]; then
   printf 'Repeat installation changed the target tree.\n' >&2
+  exit 1
+fi
+
+compare_base="$tmp_root/base-snapshot"
+cp -R "$template_root" "$compare_base"
+
+run_compare() {
+  local label=$1
+  local target=$2
+  local base=${3:-}
+  local before_target
+  local before_base=''
+  local before_template
+  local after_target
+  local after_base=''
+  local after_template
+  local output
+
+  before_target=$(snapshot_tree "$target")
+  before_template=$(snapshot_tree "$template_root")
+  if [[ -n "$base" ]]; then
+    before_base=$(snapshot_tree "$base")
+  fi
+
+  if [[ -n "$base" ]]; then
+    output=$("$project_root/scripts/compare.sh" --target "$target" --base "$base")
+  else
+    output=$("$project_root/scripts/compare.sh" --target "$target")
+  fi
+
+  after_target=$(snapshot_tree "$target")
+  after_template=$(snapshot_tree "$template_root")
+  if [[ -n "$base" ]]; then
+    after_base=$(snapshot_tree "$base")
+  fi
+  if [[ "$before_target" != "$after_target" || "$before_base" != "$after_base" || "$before_template" != "$after_template" ]]; then
+    printf '%s comparison changed the target, base, or template tree.\n' "$label" >&2
+    exit 1
+  fi
+  printf '%s\n' "$output"
+}
+
+assert_compare_status() {
+  local output=$1
+  local status=$2
+  local file=$3
+  local prefix
+  prefix=$(printf '%-14s %-48s' "$status" "$file")
+  if ! printf '%s\n' "$output" | rg -F -q "$prefix"; then
+    printf 'Comparison did not report %s for %s.\n' "$status" "$file" >&2
+    exit 1
+  fi
+}
+
+identical_output=$(run_compare 'identical' "$install_target")
+for destination in "${installed_destinations[@]}"; do
+  assert_compare_status "$identical_output" 'unchanged' "$destination"
+done
+assert_compare_status "$identical_output" 'unchanged' 'openSpec/changes/archive/'
+if ! printf '%s\n' "$identical_output" | rg -F -q 'manual: project-specific'; then
+  printf 'Comparison omitted the project-specific manual note.\n' >&2
+  exit 1
+fi
+if ! printf '%s\n' "$identical_output" | rg -F -q 'metadata: update after merge'; then
+  printf 'Comparison omitted the baseline metadata note.\n' >&2
+  exit 1
+fi
+
+ours_target="$tmp_root/ours-target"
+cp -R "$install_target" "$ours_target"
+printf '\nlocal rule\n' >>"$ours_target/AGENTS.md"
+ours_output=$(run_compare 'ours-only' "$ours_target" "$compare_base")
+assert_compare_status "$ours_output" 'ours-only' 'AGENTS.md'
+assert_compare_status "$ours_output" 'unchanged' 'openSpec/README.md'
+
+differs_output=$(run_compare 'two-way' "$ours_target")
+assert_compare_status "$differs_output" 'differs' 'AGENTS.md'
+if ! printf '%s\n' "$differs_output" | rg -F -q 'two-way comparison'; then
+  printf 'Two-way comparison omitted its limitation notice.\n' >&2
+  exit 1
+fi
+
+theirs_target="$tmp_root/theirs-target"
+theirs_base="$tmp_root/theirs-base"
+cp -R "$install_target" "$theirs_target"
+cp -R "$template_root" "$theirs_base"
+printf '\nold template rule\n' >>"$theirs_base/AGENTS.template.md"
+cp "$theirs_base/AGENTS.template.md" "$theirs_target/AGENTS.md"
+theirs_output=$(run_compare 'theirs-only' "$theirs_target" "$theirs_base")
+assert_compare_status "$theirs_output" 'theirs-only' 'AGENTS.md'
+
+both_target="$tmp_root/both-target"
+both_base="$tmp_root/both-base"
+cp -R "$install_target" "$both_target"
+cp -R "$template_root" "$both_base"
+printf '\nlocal rule\n' >>"$both_target/AGENTS.md"
+printf '\ntemplate rule\n' >>"$both_base/AGENTS.template.md"
+both_output=$(run_compare 'both-changed' "$both_target" "$both_base")
+assert_compare_status "$both_output" 'both-changed' 'AGENTS.md'
+
+converged_target="$tmp_root/converged-target"
+converged_base="$tmp_root/converged-base"
+cp -R "$install_target" "$converged_target"
+cp -R "$template_root" "$converged_base"
+printf '\nold template rule\n' >>"$converged_base/AGENTS.template.md"
+converged_output=$(run_compare 'converged' "$converged_target" "$converged_base")
+assert_compare_status "$converged_output" 'converged' 'AGENTS.md'
+
+missing_target="$tmp_root/missing-target"
+cp -R "$install_target" "$missing_target"
+rm "$missing_target/openSpec/README.md"
+missing_output=$(run_compare 'missing' "$missing_target" "$compare_base")
+assert_compare_status "$missing_output" 'missing' 'openSpec/README.md'
+
+base_missing_target="$tmp_root/base-missing-target"
+base_missing_base="$tmp_root/base-missing-base"
+cp -R "$install_target" "$base_missing_target"
+cp -R "$template_root" "$base_missing_base"
+rm "$base_missing_base/openSpec/README.md"
+base_missing_output=$(run_compare 'base-missing' "$base_missing_target" "$base_missing_base")
+assert_compare_status "$base_missing_output" 'base-missing' 'openSpec/README.md'
+
+if ! printf '%s\n' "$theirs_output" | rg -F -q 'Base baseline: '; then
+  printf 'Comparison omitted the base baseline line.\n' >&2
+  exit 1
+fi
+if ! printf '%s\n' "$theirs_output" | rg -F -q 'Template baseline: 0.1.0-dev.4'; then
+  printf 'Comparison omitted the template baseline line.\n' >&2
+  exit 1
+fi
+
+invalid_path_target="$tmp_root/invalid-path-target"
+cp -R "$install_target" "$invalid_path_target"
+rm "$invalid_path_target/openSpec/README.md"
+mkdir "$invalid_path_target/openSpec/README.md"
+
+set +e
+"$project_root/scripts/compare.sh" --target "$tmp_root/does-not-exist" >/dev/null 2>&1
+invalid_compare_target=$?
+"$project_root/scripts/compare.sh" --target "$install_target" --base "$tmp_root/does-not-exist" >/dev/null 2>&1
+invalid_compare_base=$?
+"$project_root/scripts/compare.sh" --target "$install_target" --base '' >/dev/null 2>&1
+invalid_compare_empty_base=$?
+"$project_root/scripts/compare.sh" --target "$invalid_path_target" >/dev/null 2>&1
+invalid_compare_path=$?
+"$project_root/scripts/compare.sh" --unknown >/dev/null 2>&1
+invalid_compare_arg=$?
+set -e
+if [[ $invalid_compare_target -ne 66 || $invalid_compare_base -ne 66 || $invalid_compare_empty_base -ne 64 || $invalid_compare_path -ne 66 || $invalid_compare_arg -ne 64 ]]; then
+  printf 'Comparison invalid-argument statuses were %s, %s, %s, %s, %s; expected 66, 66, 64, 66, 64.\n' \
+    "$invalid_compare_target" "$invalid_compare_base" "$invalid_compare_empty_base" "$invalid_compare_path" "$invalid_compare_arg" >&2
   exit 1
 fi
 
