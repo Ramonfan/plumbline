@@ -1,0 +1,45 @@
+schema: spec-driven
+
+context: |
+  Language: 简体中文
+  All artifacts must be written in 简体中文.
+  Keep OpenSpec structural headings and SHALL/MUST keywords in English.
+  Project: AI 工作流，维护可复用的 OpenSpec + Superpowers + Codex 项目工作流模板。
+  Project profile: 根目录 PROJECT_PROFILE.md 是目录、命令、验证和发布约束的权威入口。
+  OpenSpec 是需求、行为规格、技术设计、任务进度、验收证据和归档的唯一事实源。
+  Superpowers 只提供测试驱动开发、系统化调试、代码审查和完成前验证。
+  templates/project-workflow 是对外复用模板的权威版本。
+  scripts/install.sh 不得覆盖目标文件；存在任一冲突时必须零写入退出。
+  scripts/verify.sh 是本项目的统一自动验证入口。
+  本项目当前不以 Git 初始化、提交或发布作为完成条件；未经用户授权不得执行这些操作。
+
+rules:
+  proposal:
+    - 明确任务等级：L1 小型修复、L2 常规模板变化或 L3 破坏兼容的核心改造；L0 阅读分析不创建 change。
+    - 必须包含目标、非目标、影响范围、兼容与迁移、验收口径和需求门禁结论。
+    - 需求未确认时不得修改模板或脚本。
+  specs:
+    - 只描述可观察、可验证的工作流、模板和安装行为，不写逐步实现细节。
+    - 每条 Requirement 必须包含正常场景，并按风险覆盖冲突、失败、兼容和重复安装。
+    - 安装相关行为必须明确预览、无冲突安装和冲突零写入边界。
+  design:
+    - 描述模板层次、文件映射、安装时序、关键假设、更简替代方案、兼容、迁移、回滚、风险和验证方式。
+    - 变更模板公开文件、占位变量或脚本参数时必须说明替代方案和升级路径。
+    - 方案门禁未通过时不得创建可执行实施任务。
+  tasks:
+    - 每个任务必须可独立验证，写成可验证目标并写明验证方式。
+    - 模板行为变化必须包含 verify.sh、安装预览、空目标安装、冲突拒绝和 OpenSpec strict validation。
+    - 用户结构验收未完成时，最终任务保持未完成，不得归档。
+
+operations:
+  apply:
+    guidance:
+      - 开始实现前确认用户已通过方案门禁并明确允许落地。
+      - 只修改当前 change 范围，不覆盖未知文件或业务项目内容。
+      - 每完成一项任务立即回写 checkbox 和证据。
+      - 安装测试只使用系统临时目录，不对真实业务项目执行试安装。
+      - 改动脚本后执行 bash -n 和完整行为测试。
+  archive:
+    guidance:
+      - 归档前必须完成 verify.sh、OpenSpec strict validation、CHANGELOG 更新和用户结构验收。
+      - 归档摘要记录模板版本、兼容变化、安装行为、验证命令和残留风险。
