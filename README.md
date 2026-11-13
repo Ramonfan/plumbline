@@ -502,11 +502,11 @@ rg --version
 
 - 项目正式名称：`Plumbline（准绳）`；建议仓库标识 `plumbline`。
 - 实际工作目录已重命名为 `plumbline`；旧路径 `/Users/leigod/雷神/AI工作流` 不再存在。
-- 当前未发布集成基线：`0.1.0-dev.5`。
+- 当前集成基线：`0.1.0-dev.5`（预发布标签 `v0.1.0-dev.5`）。
 - 活跃 change：无；`add-code-review-gate-skill` 已通过结构验收并归档。
 - 最近归档：`2026-11-13-add-code-review-gate-skill`、`2026-11-12-rename-workspace-to-plumbline`、`2026-11-12-rename-project-to-plumbline`、`2026-11-12-add-workflow-upgrade-path`、`2026-11-12-add-cross-agent-entry`、`2026-11-12-add-coding-behavior-guidelines`。
 - 升级能力范围：文档 + 只读比较脚本 `scripts/compare.sh`，不提供自动覆盖。
-- 项目已初始化 Git，默认分支 `main`，远程 `origin` 已配置；`0.1.0-dev.5` 在打 tag 前仍属未发布内容，不能作为消费项目升级目标。
+- 项目已初始化 Git，默认分支 `main`，远程 `origin` 已配置；`0.1.0-dev.5` 已打标签 `v0.1.0-dev.5` 并推送，该标签可作为消费项目升级的可追溯快照；升级仍须人工比较合并并自行验证。
 
 ## 相关文档
 
