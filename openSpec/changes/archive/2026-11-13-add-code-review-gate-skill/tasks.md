@@ -105,7 +105,7 @@
 
 - 影响仓库：本权威项目仓库；模板消费者需要人工合并。
 - 实际改动：新增两棵 `running-code-review-gate` skill 目录；更新模板 `AGENTS.template.md`、`PROJECT_PROFILE.template.md`、`development-workflow` 主规格、实施检查清单、`INSTALL.md`、`README.md`、`CHANGELOG.md`、安装器、比较器、共享映射和验证器；基线升到 `0.1.0-dev.5`。
-- 提交 / Patch：本轮未提交 Git；工作区改动保持未提交状态。
+- 提交 / Patch：Git 提交 `b134099`（`feat: add code review gate skill and archive change`），包含本 change 的实现、归档和主规格同步。
 - 自动验证命令与结果：见第 5 节证据；`./scripts/verify.sh` 输出 `ALL_CHECKS_PASSED`；归档后 `openspec validate --specs` 为 3 passed。
 - 归档：`openSpec/changes/archive/2026-11-13-add-code-review-gate-skill`；主规格新增 `openSpec/specs/code-review-gate/spec.md`，并同步 `development-workflow` 与 `portable-project-workflow`。
 - 人工业务 / 交互 / 视觉 / 环境验收：2026-11-13 用户确认结构验收通过，范围包括 skill 触发、二元 verdict、风险路由、模板安装和历史项目升级方式；消费侧实际合并与真实业务验收不在本次验收范围。
