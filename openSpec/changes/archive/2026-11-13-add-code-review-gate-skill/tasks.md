@@ -77,7 +77,7 @@
 - [x] 5.1 运行 `bash -n scripts/install.sh scripts/verify.sh`、`./scripts/verify.sh`、安装预览、空目标安装、部分/完整冲突、重复安装和不安全父路径场景；验证：成功路径退出码 0，冲突/不安全路径保持约定状态且目标零写入。
 - [x] 5.2 运行 `openspec validate add-code-review-gate-skill --strict`、受影响长期主规格 strict validation 和 OpenSpec context/doctor；验证：全部通过且输出记录在本 tasks。
 - [x] 5.3 对 skill 行为、安装公开接口、权限边界、跨项目适配和验证覆盖执行独立代码审查，逐项核验反馈；验证：Critical/Important finding 已修复或经证据证伪，最终记录 `Ready: Yes/No`。
-- [ ] 5.4 将权威增量提供给消费 change `/Users/leigod/雷神/App改造/openSpec/changes/adopt-code-review-gate-skill` 人工比较，记录适用边界和两端验证结果；验证：不自动覆盖消费项目文件，关联 change 均写明同步状态。
+- [x] 5.4 将权威增量提供给消费 change `/Users/leigod/雷神/App改造/openSpec/changes/adopt-code-review-gate-skill` 人工比较，记录适用边界和两端验证结果；验证：2026-11-13 经用户授权完成消费侧人工同步。消费项目保留纯 reviewer 设计（`HIGH/MEDIUM/LOW` + `COMPLETE/PARTIAL/FAILED`，不输出 `Ready`），未复制权威编排 skill；已同步权威路径与 `0.1.0-dev.5` 基线、独立 reviewer 定义、提交/合并前审查门禁、`development-workflow` 主规格和实施清单。消费侧 change strict validation 通过，`openspec validate --specs` 为 24 passed，`nnios` Git status 为空；未自动覆盖消费项目文件。
 
 ### 自动验证证据
 
@@ -109,7 +109,7 @@
 - 自动验证命令与结果：见第 5 节证据；`./scripts/verify.sh` 输出 `ALL_CHECKS_PASSED`；归档后 `openspec validate --specs` 为 3 passed。
 - 归档：`openSpec/changes/archive/2026-11-13-add-code-review-gate-skill`；主规格新增 `openSpec/specs/code-review-gate/spec.md`，并同步 `development-workflow` 与 `portable-project-workflow`。
 - 人工业务 / 交互 / 视觉 / 环境验收：2026-11-13 用户确认结构验收通过，范围包括 skill 触发、二元 verdict、风险路由、模板安装和历史项目升级方式；消费侧实际合并与真实业务验收不在本次验收范围。
-- 工作流同步结论：新增能力已进入权威模板；消费项目必须通过关联 change 人工合并，不自动覆盖。
+- 工作流同步结论：新增能力已进入权威模板；消费项目已通过关联 change 人工合并适用增量，保留纯 reviewer 设计，未复制编排 skill，不自动覆盖。
 - 关联权威项目 change：本项目即权威工作流项目；消费侧关联 change 为 `/Users/leigod/雷神/App改造/openSpec/changes/adopt-code-review-gate-skill`。
-- 未覆盖项与残留风险：skill 是 agent 工作流门禁，不物理阻止人工提交；未在真实消费项目执行合并；消费项目当前没有 `PROJECT_PROFILE.md`，无法自动写入审查字段。
-- 后续事项：消费侧人工同步需单独授权；本仓库如需自用审查门禁，需另行安装 `.agents/skills/` 和 `.claude/skills/`。
+- 未覆盖项与残留风险：skill 是 agent 工作流门禁，不物理阻止人工提交；消费项目保留原有纯 reviewer 设计，未接入编排 skill 和 `PROJECT_PROFILE.md`；真实 iOS 业务、交互和真机验证由其自身 change 负责；本仓库尚未自用安装审查 skill。
+- 后续事项：无强制项；消费项目最终验收和归档由其关联 change 负责，如需本仓库自用审查门禁需另行安装 `.agents/skills/` 和 `.claude/skills/`。
