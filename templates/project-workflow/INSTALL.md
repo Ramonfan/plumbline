@@ -15,6 +15,8 @@
 | `openSpec/README.md` | 同路径 | 工作流入口和命令索引 |
 | `openSpec/weekly_report_template.md` | 同路径 | 周报模板 |
 | `superPowers/implementation_checklist.md` | 同路径 | 实施阶段检查清单 |
+| `.agents/skills/running-code-review-gate/` | 同路径 | Codex/通用 agent 的代码审查门禁 skill，规范源 |
+| `.claude/skills/running-code-review-gate/` | 同路径 | Claude Code 的同一 skill 镜像，不含 `agents/openai.yaml` |
 | `examples/ios/PROJECT_PROFILE.example.md` | 不直接复制 | 仅供 iOS 项目填写配置时参考 |
 | `examples/coding-behavior-guidelines.md` | 不直接复制 | 供合并 `AGENTS.md`、培训和审查时参考 |
 
@@ -29,6 +31,17 @@
 不要把 `AGENTS.md` 的内容复制到 `CLAUDE.md`；Claude 专属补充写在导入之后。Claude Code 会话中可用 `/context all`（可用版本也可使用 `/memory`）确认 `CLAUDE.md` 和导入文件已加载。
 
 子目录中有更细的 `AGENTS.md` 时，模板安装后的根 `CLAUDE.md` 会让 Claude Code 默认只读 `CLAUDE.md` 链路，子目录 `AGENTS.md` 不会自动叠加。可在 `/config` 把 **Project instructions** 设为 `claude-md-and-agents-md`，或在子目录增加只导入同目录 `AGENTS.md` 的薄 `CLAUDE.md`。较新版本的 Claude Code（v2.1.277 及以上）在完全缺少 `CLAUDE.md` 和 `CLAUDE.local.md` 时会直接读取根 `AGENTS.md`；更细的目录加载行为以目标版本和 `/context all` 结果为准。旧版本和受限会话仍需本模板提供的导入入口。
+
+## 代码审查门禁 skill
+
+模板附带可自动发现的 `running-code-review-gate` skill，同时安装到两个入口：
+
+- `.agents/skills/running-code-review-gate/`：规范源，Codex 和通用 agent 读取；
+- `.claude/skills/running-code-review-gate/`：Claude Code 镜像，内容与规范源一致，不包含 `agents/openai.yaml`。
+
+skill 在准备提交、合并或声明实现完成时运行，负责定位 OpenSpec change、确认实际仓库和精确差异、读取项目专属规则、选择本地或独立审查、汇总 findings 并给出 `Ready: Yes/No`。它默认只读，不修改实现、不执行 Git 写操作，也不把审查通过当成用户验收。
+
+项目专属检查点不进入通用 skill：技术栈、仓库边界、命令和强制独立审查条件写入 `PROJECT_PROFILE.md` 与根规则，领域规则写入对应主规格。安装后请确认这些字段已填写，否则 skill 只能得到不完整结论。
 
 ## 安装前检查
 
@@ -54,6 +67,14 @@ find . -maxdepth 3 -type d -name .git -print
 ├── CLAUDE.md
 ├── PROJECT_PROFILE.md
 ├── WORKFLOW_BASELINE.yaml
+├── .agents/skills/running-code-review-gate/
+│   ├── SKILL.md
+│   ├── references/review-contract.md
+│   ├── references/reviewer-brief.md
+│   └── agents/openai.yaml
+├── .claude/skills/running-code-review-gate/
+│   ├── SKILL.md
+│   └── references/
 ├── openSpec/
 │   ├── config.yaml
 │   ├── README.md
@@ -172,9 +193,18 @@ test -f openSpec/README.md
 test -f openSpec/weekly_report_template.md
 test -f openSpec/specs/development-workflow/spec.md
 test -f superPowers/implementation_checklist.md
+test -f .agents/skills/running-code-review-gate/SKILL.md
+test -f .agents/skills/running-code-review-gate/references/review-contract.md
+test -f .agents/skills/running-code-review-gate/references/reviewer-brief.md
+test -f .agents/skills/running-code-review-gate/agents/openai.yaml
+test -f .claude/skills/running-code-review-gate/SKILL.md
+test -f .claude/skills/running-code-review-gate/references/review-contract.md
+test -f .claude/skills/running-code-review-gate/references/reviewer-brief.md
 rg -F -q '@AGENTS.md' CLAUDE.md
 rg -F -q '@PROJECT_PROFILE.md' CLAUDE.md
 ```
+
+两棵 skill 目录除 `agents/openai.yaml` 外必须逐字节一致；`.claude/` 侧不包含该文件。
 
 ### 占位符
 
@@ -238,7 +268,7 @@ openspec validate development-workflow --type spec --strict
 3. 读取权威项目 `CHANGELOG.md`，确认目标版本及其 Upgrade 记录：新增、修改、删除的文件，占位符变化，安装行为变化，是否需要迁移。
 4. 选定一个明确目标版本，不要使用“最新版本”这类移动目标。
 
-消费项目应在自己的仓库创建 change，例如 `adopt-workflow-0.1.0-dev.4`，并在 proposal 中记录：
+消费项目应在自己的仓库创建 change，例如 `adopt-workflow-0.1.0-dev.5`，并在 proposal 中记录：
 
 - 旧基线版本和目标版本；
 - 本次纳入的模板变更范围；
@@ -290,6 +320,7 @@ openspec validate development-workflow --type spec --strict
 | `missing` | 目标缺少映射文件 | 判断是否补装或说明不适用 |
 | `differs` | 无 base 时目标与模板不同 | 人工审查，补齐旧基线快照或逐文件判断 |
 | `base-missing` | 旧基线快照缺少该文件 | 确认快照是否完整，再补比较 |
+| `local-extra` | 目标 skill 目录包含模板没有的文件 | 确认是否项目专属扩展，记录保留依据并纳入后续验证 |
 
 `AGENTS.md`、`CLAUDE.md`、`PROJECT_PROFILE.md` 和 `openSpec/config.yaml` 始终附带 `manual: project-specific`。这些文件包含项目专属内容，任何状态都必须人工处理，不能直接取模板。`WORKFLOW_BASELINE.yaml` 附带 `metadata: update after merge`，只能在合并和验证完成后更新。
 
@@ -311,11 +342,13 @@ openspec validate development-workflow --type spec --strict
 
 通用流程变化更新 `AGENTS.md`、`CLAUDE.md`（仅导入和 Claude 专属补充）、`development-workflow` 和必要的 OpenSpec 配置规则；技术栈、命令、目录和环境变化只更新 `PROJECT_PROFILE.md`；领域行为变化通过对应 OpenSpec change 更新长期主规格。
 
+代码审查门禁 skill 属于新增目录映射。升级时把 `.agents/skills/running-code-review-gate/` 并入目标，再复制为 `.claude/skills/running-code-review-gate/`（去掉 `agents/openai.yaml`），两边 `SKILL.md` 和 `references/` 必须逐字节一致；项目专属检查点写入 `PROJECT_PROFILE.md` 和根规则，不修改通用 skill 正文。
+
 ### 5. 验证与验收
 
 合并完成后依次执行：
 
-1. 消费项目自己的结构检查：文件存在、占位符已替换、Markdown 围栏闭合、YAML 可解析、OpenSpec strict validation 通过。
+1. 消费项目自己的结构检查：文件存在、占位符已替换、Markdown 围栏闭合、YAML 可解析、两棵 skill 目录内容一致且 frontmatter 合法、OpenSpec strict validation 通过。
 2. 消费项目 `PROJECT_PROFILE.md` 定义的真实命令：测试、静态检查、构建、迁移或部署验证。
 3. 受影响的流程试运行：至少覆盖一次 L1 change 的 proposal、spec、tasks、证据回写和归档链路。
 4. 用户结构验收：确认入口导入、门禁、目录和命令与项目实际一致。
@@ -350,6 +383,7 @@ openspec validate development-workflow --type spec --strict
 - [ ] base、ours、theirs 三方输入可追溯，base 确实是旧基线快照。
 - [ ] 已运行 `compare.sh` 并把报告写入 change。
 - [ ] 项目专属文件全部人工合并，未直接取模板。
+- [ ] `.agents/skills/` 与 `.claude/skills/` 的审查 skill 已人工合并，两边内容一致且项目专属规则留在 `PROJECT_PROFILE.md`。
 - [ ] 结构验证和真实项目验证均有实际输出与退出码。
 - [ ] 用户结构验收已完成。
 - [ ] 权威项目改名时，`PROJECT_PROFILE.md` 记录的权威来源名称已人工更新。

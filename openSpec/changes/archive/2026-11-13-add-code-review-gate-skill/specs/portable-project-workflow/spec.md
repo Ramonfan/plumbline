@@ -15,6 +15,10 @@
 - **WHEN** 已安装旧模板的项目希望接入审查门禁
 - **THEN** 升级说明必须要求比较权威模板和本地规则，人工合并 skill、规格和项目适配，不得自动覆盖
 
+#### Scenario: 验证双入口一致性
+- **WHEN** 执行权威项目统一验证
+- **THEN** 验证必须确认 `.agents/skills/` 与 `.claude/skills/` 包含同一组必需文件、内容逐字节一致，且 Claude 镜像不包含 `agents/openai.yaml`
+
 #### Scenario: 验证模板隔离性
 - **WHEN** 执行权威项目统一验证
 - **THEN** 验证必须检查 skill 文件完整、名称和 frontmatter 合法、安装映射一致、无占位残留且通用核心没有技术栈或业务规则泄漏

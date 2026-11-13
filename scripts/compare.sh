@@ -84,6 +84,22 @@ for source in "${template_sources[@]}"; do
   fi
 done
 
+for tree_index in "${!template_tree_sources[@]}"; do
+  tree="$template_root/${template_tree_sources[$tree_index]}"
+  if [[ ! -d "$tree" ]]; then
+    printf 'Template directory is missing: %s\n' "$tree" >&2
+    exit 70
+  fi
+  if [[ "$tree_index" -eq 0 ]]; then
+    canonical_only='true'
+  else
+    canonical_only='false'
+  fi
+  if ! validate_template_tree "$tree" "$canonical_only"; then
+    exit 70
+  fi
+done
+
 base_root=''
 if [[ -n "$base_dir" ]]; then
   if [[ ! -d "$base_dir" ]]; then
@@ -147,12 +163,13 @@ append_note() {
   fi
 }
 
-for index in "${!template_sources[@]}"; do
-  source_path="$template_root/${template_sources[$index]}"
-  destination_rel=${installed_destinations[$index]}
-  destination_path="$target_root/$destination_rel"
-  status=''
-  note=''
+compare_file() {
+  local source_path=$1
+  local base_rel=$2
+  local destination_rel=$3
+  local destination_path="$target_root/$destination_rel"
+  local status=''
+  local note=''
 
   if [[ ! -e "$destination_path" ]]; then
     status='missing'
@@ -168,15 +185,15 @@ for index in "${!template_sources[@]}"; do
         note='two-way diff; verify manually'
       fi
     else
-      base_path="$base_root/${template_sources[$index]}"
+      local base_path="$base_root/$base_rel"
       if [[ ! -e "$base_path" ]]; then
         status='base-missing'
         note='missing from base snapshot'
       else
         require_regular_readable "$base_path" 'Base path'
 
-        local_changed='false'
-        template_changed='false'
+        local local_changed='false'
+        local template_changed='false'
         if ! cmp -s "$destination_path" "$base_path"; then
           local_changed='true'
         fi
@@ -209,6 +226,37 @@ for index in "${!template_sources[@]}"; do
   esac
 
   printf '%-14s %-48s %s\n' "$status" "$destination_rel" "$note"
+}
+
+for index in "${!template_sources[@]}"; do
+  compare_file "$template_root/${template_sources[$index]}" \
+    "${template_sources[$index]}" \
+    "${installed_destinations[$index]}"
+done
+
+for tree_index in "${!template_tree_sources[@]}"; do
+  tree_source="$template_root/${template_tree_sources[$tree_index]}"
+  tree_destination=${installed_tree_destinations[$tree_index]}
+  while IFS= read -r tree_file; do
+    compare_file "$tree_source/$tree_file" \
+      "${template_tree_sources[$tree_index]}/$tree_file" \
+      "$tree_destination/$tree_file"
+  done < <(list_tree_files "$tree_source")
+
+  if [[ -d "$target_root/$tree_destination" ]]; then
+    while IFS= read -r target_file; do
+      target_present='false'
+      while IFS= read -r template_file; do
+        if [[ "$target_file" == "$template_file" ]]; then
+          target_present='true'
+          break
+        fi
+      done < <(list_tree_files "$tree_source")
+      if [[ "$target_present" == 'false' ]]; then
+        printf '%-14s %-48s %s\n' 'local-extra' "$tree_destination/$target_file" 'not in template; review manually'
+      fi
+    done < <(list_tree_files "$target_root/$tree_destination")
+  fi
 done
 
 for directory_rel in "${installed_directories[@]}"; do

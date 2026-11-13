@@ -47,7 +47,7 @@ Codex、Claude Code 和通用 agent 共用同一份规则事实源：
 
 较新版本的 Claude Code（v2.1.277 及以上）在完全缺少 `CLAUDE.md` 和 `CLAUDE.local.md` 时，也会把根 `AGENTS.md` 当作项目指令读取。本项目仍提供显式 `CLAUDE.md`，用于旧版本、受限会话和 Claude 专属补充的稳定入口。
 
-> 技能类扩展需要在各 agent 的项目技能目录中提供入口。当前活跃 change `add-code-review-gate-skill` 计划用 `.agents/skills/` 作为规范源、`.claude/skills/` 作为 Claude Code 镜像，并由验证脚本校验两边一致。
+> 技能类扩展需要在各 agent 的项目技能目录中提供入口。模板已交付 `running-code-review-gate`：`.agents/skills/` 为规范源，`.claude/skills/` 为 Claude Code 镜像，验证脚本校验两边内容逐字节一致。
 
 ### 子目录规则
 
@@ -95,6 +95,18 @@ Superpowers 和 agent 不创建第二份需求、设计、任务或归档事实�
 ### Superpowers 的职责边界
 
 Superpowers 只参与测试驱动开发、系统化调试、代码审查和完成前验证。它不管理需求、设计、任务状态或归档。
+
+### 代码审查门禁
+
+模板附带 `running-code-review-gate` skill，同时交付给 Codex/通用 agent（`.agents/skills/`）和 Claude Code（`.claude/skills/`）。它在准备提交、合并或声明实现完成时运行：
+
+- 定位当前 change、任务等级、方案门禁和受影响仓库；
+- 逐仓库读取精确差异，区分本次改动、无关脏改和未跟踪文件；
+- 按风险选择本地审查或未参与实现的独立 reviewer；
+- 输出 Critical/Important/Minor findings 和 `Ready: Yes/No`；
+- 默认只读，不修改实现、不执行 Git 写操作，也不替代用户验收。
+
+项目专属检查点写入 `PROJECT_PROFILE.md` 和根规则，通用 skill 不含业务专名或技术栈硬编码。
 
 ### 编码行为准则
 
@@ -150,6 +162,15 @@ openSpec/README.md
 openSpec/weekly_report_template.md
 openSpec/specs/development-workflow/spec.md
 superPowers/implementation_checklist.md
+.agents/skills/running-code-review-gate/
+  SKILL.md
+  agents/openai.yaml
+  references/review-contract.md
+  references/reviewer-brief.md
+.claude/skills/running-code-review-gate/
+  SKILL.md
+  references/review-contract.md
+  references/reviewer-brief.md
 openSpec/changes/archive/ (directory)
 ```
 
@@ -187,7 +208,8 @@ openSpec/changes/archive/ (directory)
 - 源码、测试、配置、文档、生成产物和依赖目录；
 - 安装、格式、静态检查、测试、构建、运行和迁移命令；
 - 环境、人工验收责任人和验收矩阵；
-- 长期领域规格、禁止操作、发布和回滚流程。
+- 长期领域规格、禁止操作、发布和回滚流程；
+- 代码审查门禁的强制独立审查条件、项目专属检查点和审查证据位置。
 
 把 `WORKFLOW_BASELINE.yaml` 中的 `workflow_version` 记录到“当前接入版本、标签或基线”。
 
@@ -206,6 +228,8 @@ test -f AGENTS.md
 test -f CLAUDE.md
 test -f PROJECT_PROFILE.md
 test -f openSpec/config.yaml
+test -f .agents/skills/running-code-review-gate/SKILL.md
+test -f .claude/skills/running-code-review-gate/SKILL.md
 rg -F -q '@AGENTS.md' CLAUDE.md
 rg -F -q '@PROJECT_PROFILE.md' CLAUDE.md
 
@@ -277,7 +301,7 @@ Claude Code 读取根目录 `CLAUDE.md`。模板中的内容是：
 
 ### 1. 创建升级 change
 
-在消费项目创建例如 `adopt-workflow-0.1.0-dev.4` 的 OpenSpec change，记录旧基线、目标版本、升级范围、明确不纳入的内容和回滚点。不要在没有 change 的情况下直接改治理文件。
+在消费项目创建例如 `adopt-workflow-0.1.0-dev.5` 的 OpenSpec change，记录旧基线、目标版本、升级范围、明确不纳入的内容和回滚点。不要在没有 change 的情况下直接改治理文件。
 
 ### 2. 准备版本快照并取得三方输入
 
@@ -318,6 +342,7 @@ Claude Code 读取根目录 `CLAUDE.md`。模板中的内容是：
 | `missing` | 目标缺少文件 | 判断补装或说明不适用 |
 | `differs` | 无 base 时存在差异 | 人工审查 |
 | `base-missing` | 旧快照缺少文件 | 先确认快照完整性 |
+| `local-extra` | 目标 skill 目录包含模板没有的文件 | 确认是否为项目专属扩展，并记录保留依据 |
 
 `AGENTS.md`、`CLAUDE.md`、`PROJECT_PROFILE.md`、`openSpec/config.yaml` 始终带 `manual: project-specific`，必须人工处理；`WORKFLOW_BASELINE.yaml` 带 `metadata: update after merge`，合并和验证完成后才能更新。
 
@@ -372,7 +397,8 @@ Claude Code 读取根目录 `CLAUDE.md`。模板中的内容是：
 - Markdown 代码围栏和 YAML 解析，包含隐藏目录中的 Markdown；
 - 模板占位符范围、业务专名泄漏和技术栈隔离，扫描包含隐藏文件但不进入 `.git`；
 - `CLAUDE.md` 的列 0 唯一导入、根入口与模板逐字节一致，以及模板入口不复制规则（标题/正文行重合与 60 行上限）；
-- 安装预览、空目标安装、部分/完整冲突、仅有 `CLAUDE.md` 的冲突、重复安装；
+- 审查 skill 的 frontmatter、名称、引用可达性、占位残留、`agents/openai.yaml` 元数据，以及 `.agents/` 与 `.claude/` 内容一致性；
+- 安装预览、空目标安装、部分/完整冲突、仅有 `CLAUDE.md` 的冲突、skill 目录冲突、重复安装；
 - 符号链接和非目录父路径零写入；
 - OpenSpec context、doctor 和长期主规格 strict validation。
 
@@ -405,6 +431,8 @@ Plumbline/
     ├── PROJECT_PROFILE.template.md
     ├── WORKFLOW_BASELINE.yaml
     ├── INSTALL.md
+    ├── .agents/skills/running-code-review-gate/   # 规范源
+    ├── .claude/skills/running-code-review-gate/   # Claude Code 镜像
     ├── openSpec/
     ├── superPowers/
     └── examples/
@@ -474,11 +502,11 @@ rg --version
 
 - 项目正式名称：`Plumbline（准绳）`；建议仓库标识 `plumbline`。
 - 实际工作目录已重命名为 `plumbline`；旧路径 `/Users/leigod/雷神/AI工作流` 不再存在。
-- 当前未发布集成基线：`0.1.0-dev.4`。
-- 活跃 change：`add-code-review-gate-skill`（计划基线 `0.1.0-dev.5`）。
-- 最近归档：`2026-11-12-rename-workspace-to-plumbline`、`2026-11-12-rename-project-to-plumbline`、`2026-11-12-add-workflow-upgrade-path`、`2026-11-12-add-cross-agent-entry`、`2026-11-12-add-coding-behavior-guidelines`。
+- 当前未发布集成基线：`0.1.0-dev.5`。
+- 活跃 change：无；`add-code-review-gate-skill` 已通过结构验收并归档。
+- 最近归档：`2026-11-13-add-code-review-gate-skill`、`2026-11-12-rename-workspace-to-plumbline`、`2026-11-12-rename-project-to-plumbline`、`2026-11-12-add-workflow-upgrade-path`、`2026-11-12-add-cross-agent-entry`、`2026-11-12-add-coding-behavior-guidelines`。
 - 升级能力范围：文档 + 只读比较脚本 `scripts/compare.sh`，不提供自动覆盖。
-- 项目已初始化 Git，默认分支 `main`；未配置远程仓库。当前 dev.4 改动尚未提交或打 tag，打 tag 前不能作为消费项目升级目标。
+- 项目已初始化 Git，默认分支 `main`，远程 `origin` 已配置；`0.1.0-dev.5` 在打 tag 前仍属未发布内容，不能作为消费项目升级目标。
 
 ## 相关文档
 

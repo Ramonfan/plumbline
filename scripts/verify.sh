@@ -57,7 +57,7 @@ done
 
 bash -n "$project_root/scripts/install.sh" "$project_root/scripts/verify.sh" "$project_root/scripts/compare.sh" "$project_root/scripts/workflow-files.sh"
 
-ruby -e 'require "yaml"; YAML.load_file(ARGV.fetch(0)); YAML.load_file(ARGV.fetch(1)); baseline = YAML.load_file(ARGV.fetch(2)); abort("Invalid baseline schema_version") unless baseline["schema_version"] == 1; abort("Invalid workflow_version") unless baseline["workflow_version"] == "0.1.0-dev.4"; abort("Invalid authority_name") unless baseline["authority_name"] == "Plumbline"' \
+ruby -e 'require "yaml"; YAML.load_file(ARGV.fetch(0)); YAML.load_file(ARGV.fetch(1)); baseline = YAML.load_file(ARGV.fetch(2)); abort("Invalid baseline schema_version") unless baseline["schema_version"] == 1; abort("Invalid workflow_version") unless baseline["workflow_version"] == "0.1.0-dev.5"; abort("Invalid authority_name") unless baseline["authority_name"] == "Plumbline"' \
   "$project_root/openSpec/config.yaml" \
   "$template_root/openSpec/config.template.yaml" \
   "$template_root/WORKFLOW_BASELINE.yaml"
@@ -117,6 +117,10 @@ core_files=(
   "$template_root/superPowers/implementation_checklist.md"
 )
 
+while IFS= read -r skill_file; do
+  core_files+=("$skill_file")
+done < <(find "$template_root/.agents/skills" "$template_root/.claude/skills" -type f -print | LC_ALL=C sort)
+
 if rg -n 'CocoaPods|iphoneos|UIKit|Swift|Objective-C|Xcode|Podfile|podspec' "${core_files[@]}"; then
   printf 'Technology-specific content leaked outside the examples directory.\n' >&2
   exit 1
@@ -165,6 +169,92 @@ ruby -e '
   duplicated_body = body_lines(ARGV.fetch(0)) & body_lines(ARGV.fetch(1))
   abort("CLAUDE template copies AGENTS body lines: #{duplicated_body.join(" | ")}") unless duplicated_body.empty?
 ' "$template_root/AGENTS.template.md" "$template_root/CLAUDE.template.md"
+
+ruby -e '
+  require "yaml"
+  require "find"
+
+  canonical = ARGV.fetch(0)
+  mirror = ARGV.fetch(1)
+  expected_name = ARGV.fetch(2)
+
+  abort("Missing canonical skill entry") unless File.file?(File.join(canonical, "SKILL.md"))
+  abort("Missing mirror skill entry") unless File.file?(File.join(mirror, "SKILL.md"))
+
+  def frontmatter(path)
+    lines = File.readlines(path, chomp: true)
+    abort("Skill frontmatter must start at line 1: #{path}") unless lines.first == "---"
+    closing = lines[1..-1].index("---")
+    abort("Skill frontmatter is not closed: #{path}") if closing.nil?
+    YAML.load(lines[1, closing].join("\n")) || {}
+  end
+
+  [canonical, mirror].each do |root|
+    data = frontmatter(File.join(root, "SKILL.md"))
+    abort("Skill name mismatch in #{root}") unless data["name"] == expected_name
+    description = data["description"].to_s
+    abort("Skill description must start with Use when in #{root}") unless description.start_with?("Use when")
+    body = File.read(File.join(root, "SKILL.md"))
+    Dir.glob(File.join(root, "references", "*.md")).each do |reference|
+      name = File.basename(reference)
+      abort("Skill reference is not linked from SKILL.md: #{name}") unless body.include?("references/#{name}")
+    end
+    abort("Skill has no references directory: #{root}") unless Dir.exist?(File.join(root, "references"))
+  end
+
+  skills = {
+    canonical => true,
+    mirror => false
+  }
+  required = ARGV.fetch(3).split("\n")
+  canonical_only = ARGV.fetch(4).split("\n")
+
+  skills.each do |root, is_canonical|
+    files = []
+    Find.find(root) do |path|
+      next unless File.file?(path)
+      files << path.delete_prefix(root + "/")
+    end
+    missing = required - files
+    abort("Skill is missing required files in #{root}: #{missing.join(", ")}") unless missing.empty?
+    extra = files - required - (is_canonical ? canonical_only : [])
+    abort("Skill contains unexpected files in #{root}: #{extra.join(", ")}") unless extra.empty?
+    abort("Claude skill mirror must not contain agents/openai.yaml") if !is_canonical && files.include?("agents/openai.yaml")
+  end
+
+  required.each do |file|
+    next if file == "SKILL.md"
+    abort("Claude skill mirror differs from canonical source: #{file}") unless File.binread(File.join(canonical, file)) == File.binread(File.join(mirror, file))
+  end
+  abort("Canonical and mirror SKILL.md differ") unless File.binread(File.join(canonical, "SKILL.md")) == File.binread(File.join(mirror, "SKILL.md"))
+
+  body = File.read(File.join(canonical, "SKILL.md"))
+  body.scan(%r{references/[A-Za-z0-9._-]+\.md}).uniq.each do |link|
+    abort("Skill reference link target does not exist: #{link}") unless File.file?(File.join(canonical, link))
+  end
+
+  metadata_path = File.join(canonical, "agents", "openai.yaml")
+  abort("Missing Codex skill metadata: #{metadata_path}") unless File.file?(metadata_path)
+  metadata = YAML.load_file(metadata_path)
+  abort("Skill metadata must allow implicit invocation") unless metadata.dig("policy", "allow_implicit_invocation") == true
+  abort("Skill metadata display name is missing") if metadata.dig("interface", "display_name").to_s.strip.empty?
+  abort("Skill metadata display name must not be the raw skill id") if metadata.dig("interface", "display_name") == expected_name
+  abort("Skill metadata short description is missing") if metadata.dig("interface", "short_description").to_s.strip.empty?
+  default_prompt = metadata.dig("interface", "default_prompt").to_s
+  abort("Skill metadata default prompt is missing") if default_prompt.strip.empty?
+  abort("Skill metadata default prompt must reference the skill") unless default_prompt.include?(expected_name)
+' "$template_root/${template_tree_sources[0]}" \
+  "$template_root/${template_tree_sources[1]}" \
+  "$review_skill_name" \
+  "$(printf '%s\n' "${review_skill_required_files[@]}")" \
+  "$(printf '%s\n' "${review_skill_canonical_only_files[@]}")"
+
+if rg -n --hidden --glob '!**/.git/**' 'TODO|TBD|FIXME|PLACEHOLDER' \
+  "$template_root/${review_skill_canonical_tree}" \
+  "$template_root/${review_skill_mirror_tree}"; then
+  printf 'Unfinished placeholder remains in the review gate skill.\n' >&2
+  exit 1
+fi
 
 tmp_base=${TMPDIR:-/tmp}
 if [[ ! -d "$tmp_base" || ! -w "$tmp_base" || ! -x "$tmp_base" ]]; then
@@ -224,7 +314,17 @@ if [[ -n "$(find "$dry_target" -mindepth 1 -print -quit)" ]]; then
   exit 1
 fi
 actual_planned=$(printf '%s\n' "$dry_output" | rg '^  - ' || true)
-expected_planned=$(printf '  - %s\n' "${installed_destinations[@]}" 'openSpec/changes/archive/ (directory)')
+expected_planned=$(
+  printf '  - %s\n' "${installed_destinations[@]}"
+  for tree_index in "${!template_tree_sources[@]}"; do
+    tree_source="$template_root/${template_tree_sources[$tree_index]}"
+    tree_destination=${installed_tree_destinations[$tree_index]}
+    while IFS= read -r tree_file; do
+      printf '  - %s/%s\n' "$tree_destination" "$tree_file"
+    done < <(list_tree_files "$tree_source")
+  done
+  printf '  - %s\n' 'openSpec/changes/archive/ (directory)'
+)
 if [[ "$actual_planned" != "$expected_planned" ]]; then
   printf 'Dry run plan did not match the exact install mapping.\nExpected:\n%s\nActual:\n%s\n' \
     "$expected_planned" "$actual_planned" >&2
@@ -238,27 +338,61 @@ for index in "${!template_sources[@]}"; do
   test -s "$destination_path"
   cmp "$source_path" "$destination_path"
 done
+for tree_index in "${!template_tree_sources[@]}"; do
+  tree_source="$template_root/${template_tree_sources[$tree_index]}"
+  tree_destination="$install_target/${installed_tree_destinations[$tree_index]}"
+  while IFS= read -r tree_file; do
+    test -s "$tree_destination/$tree_file"
+    cmp "$tree_source/$tree_file" "$tree_destination/$tree_file"
+  done < <(list_tree_files "$tree_source")
+done
 test -d "$install_target/openSpec/changes/archive"
 actual_install_tree=$(
   cd "$install_target"
   find . -mindepth 1 -print | LC_ALL=C sort
 )
-expected_install_tree=$(printf '%s\n' \
-  './AGENTS.md' \
-  './CLAUDE.md' \
-  './PROJECT_PROFILE.md' \
-  './WORKFLOW_BASELINE.yaml' \
-  './openSpec' \
-  './openSpec/README.md' \
-  './openSpec/changes' \
-  './openSpec/changes/archive' \
-  './openSpec/config.yaml' \
-  './openSpec/specs' \
-  './openSpec/specs/development-workflow' \
-  './openSpec/specs/development-workflow/spec.md' \
-  './openSpec/weekly_report_template.md' \
-  './superPowers' \
-  './superPowers/implementation_checklist.md' | LC_ALL=C sort)
+expected_install_tree=$(
+  {
+    printf '%s\n' \
+      './AGENTS.md' \
+      './CLAUDE.md' \
+      './PROJECT_PROFILE.md' \
+      './WORKFLOW_BASELINE.yaml' \
+      './openSpec' \
+      './openSpec/README.md' \
+      './openSpec/changes' \
+      './openSpec/changes/archive' \
+      './openSpec/config.yaml' \
+      './openSpec/specs' \
+      './openSpec/specs/development-workflow' \
+      './openSpec/specs/development-workflow/spec.md' \
+      './openSpec/weekly_report_template.md' \
+      './superPowers' \
+      './superPowers/implementation_checklist.md'
+    for tree_destination in "${installed_tree_destinations[@]}"; do
+      ancestor=''
+      IFS='/' read -r -a tree_parts <<<"$tree_destination"
+      for part in "${tree_parts[@]}"; do
+        ancestor=${ancestor:+$ancestor/}$part
+        printf './%s\n' "$ancestor"
+      done
+    done
+    for tree_index in "${!template_tree_sources[@]}"; do
+      tree_source="$template_root/${template_tree_sources[$tree_index]}"
+      tree_destination=${installed_tree_destinations[$tree_index]}
+      printf './%s\n' "$tree_destination"
+      while IFS= read -r tree_file; do
+        printf './%s/%s\n' "$tree_destination" "$tree_file"
+        relative_parent=${tree_file%/*}
+        while [[ "$relative_parent" != "$tree_file" ]]; do
+          printf './%s/%s\n' "$tree_destination" "$relative_parent"
+          tree_file=$relative_parent
+          relative_parent=${relative_parent%/*}
+        done
+      done < <(list_tree_files "$tree_source")
+    done
+  } | LC_ALL=C sort -u
+)
 if [[ "$actual_install_tree" != "$expected_install_tree" ]]; then
   printf 'Installed tree did not match the exact expected mapping.\nExpected:\n%s\nActual:\n%s\n' \
     "$expected_install_tree" "$actual_install_tree" >&2
@@ -318,7 +452,7 @@ if [[ $repeat_status -ne 2 ]]; then
   printf 'Repeat installation returned %s instead of 2.\n' "$repeat_status" >&2
   exit 1
 fi
-for conflict in "${installed_destinations[@]}"; do
+for conflict in "${installed_destinations[@]}" "${installed_tree_destinations[@]}"; do
   if ! rg -F -q "  - $conflict" "$tmp_root/repeat.err"; then
     printf 'Repeat installation output omitted: %s\n' "$conflict" >&2
     exit 1
@@ -327,6 +461,29 @@ done
 after_repeat=$(snapshot_tree "$install_target")
 if [[ "$before_repeat" != "$after_repeat" ]]; then
   printf 'Repeat installation changed the target tree.\n' >&2
+  exit 1
+fi
+
+skill_conflict_target="$tmp_root/skill-conflict-target"
+mkdir -p "$skill_conflict_target/.agents/skills/running-code-review-gate/references"
+printf 'local skill\n' >"$skill_conflict_target/.agents/skills/running-code-review-gate/SKILL.md"
+printf 'local reference\n' >"$skill_conflict_target/.agents/skills/running-code-review-gate/references/review-contract.md"
+before_skill_conflict=$(snapshot_tree "$skill_conflict_target")
+set +e
+"$project_root/scripts/install.sh" --target "$skill_conflict_target" >"$tmp_root/skill-conflict.out" 2>"$tmp_root/skill-conflict.err"
+skill_conflict_status=$?
+set -e
+if [[ $skill_conflict_status -ne 2 ]]; then
+  printf 'Skill conflict installation returned %s instead of 2.\n' "$skill_conflict_status" >&2
+  exit 1
+fi
+if ! rg -F -q '  - .agents/skills/running-code-review-gate' "$tmp_root/skill-conflict.err"; then
+  printf 'Skill conflict output omitted the skill directory.\n' >&2
+  exit 1
+fi
+after_skill_conflict=$(snapshot_tree "$skill_conflict_target")
+if [[ "$before_skill_conflict" != "$after_skill_conflict" ]]; then
+  printf 'Skill conflict installation changed the target tree.\n' >&2
   exit 1
 fi
 
@@ -385,6 +542,13 @@ identical_output=$(run_compare 'identical' "$install_target")
 for destination in "${installed_destinations[@]}"; do
   assert_compare_status "$identical_output" 'unchanged' "$destination"
 done
+for tree_index in "${!template_tree_sources[@]}"; do
+  tree_source="$template_root/${template_tree_sources[$tree_index]}"
+  tree_destination=${installed_tree_destinations[$tree_index]}
+  while IFS= read -r tree_file; do
+    assert_compare_status "$identical_output" 'unchanged' "$tree_destination/$tree_file"
+  done < <(list_tree_files "$tree_source")
+done
 assert_compare_status "$identical_output" 'unchanged' 'openSpec/changes/archive/'
 if ! printf '%s\n' "$identical_output" | rg -F -q 'manual: project-specific'; then
   printf 'Comparison omitted the project-specific manual note.\n' >&2
@@ -401,6 +565,25 @@ printf '\nlocal rule\n' >>"$ours_target/AGENTS.md"
 ours_output=$(run_compare 'ours-only' "$ours_target" "$compare_base")
 assert_compare_status "$ours_output" 'ours-only' 'AGENTS.md'
 assert_compare_status "$ours_output" 'unchanged' 'openSpec/README.md'
+
+tree_skill_file='.agents/skills/running-code-review-gate/SKILL.md'
+tree_ours_target="$tmp_root/tree-ours-target"
+cp -R "$install_target" "$tree_ours_target"
+printf '\nlocal review note\n' >>"$tree_ours_target/$tree_skill_file"
+tree_ours_output=$(run_compare 'tree-ours-only' "$tree_ours_target" "$compare_base")
+assert_compare_status "$tree_ours_output" 'ours-only' "$tree_skill_file"
+
+tree_missing_target="$tmp_root/tree-missing-target"
+cp -R "$install_target" "$tree_missing_target"
+rm "$tree_missing_target/$tree_skill_file"
+tree_missing_output=$(run_compare 'tree-missing' "$tree_missing_target" "$compare_base")
+assert_compare_status "$tree_missing_output" 'missing' "$tree_skill_file"
+
+tree_extra_target="$tmp_root/tree-extra-target"
+cp -R "$install_target" "$tree_extra_target"
+printf 'local extension\n' >"$tree_extra_target/.agents/skills/running-code-review-gate/references/local-extra.md"
+tree_extra_output=$(run_compare 'tree-local-extra' "$tree_extra_target" "$compare_base")
+assert_compare_status "$tree_extra_output" 'local-extra' '.agents/skills/running-code-review-gate/references/local-extra.md'
 
 differs_output=$(run_compare 'two-way' "$ours_target")
 assert_compare_status "$differs_output" 'differs' 'AGENTS.md'
@@ -453,7 +636,7 @@ if ! printf '%s\n' "$theirs_output" | rg -F -q 'Base baseline: '; then
   printf 'Comparison omitted the base baseline line.\n' >&2
   exit 1
 fi
-if ! printf '%s\n' "$theirs_output" | rg -F -q 'Template baseline: 0.1.0-dev.4'; then
+if ! printf '%s\n' "$theirs_output" | rg -F -q 'Template baseline: 0.1.0-dev.5'; then
   printf 'Comparison omitted the template baseline line.\n' >&2
   exit 1
 fi
@@ -584,6 +767,12 @@ nested_archive_file_target="$tmp_root/nested-archive-file-target"
 mkdir -p "$nested_archive_file_target/openSpec/changes"
 printf 'not a directory\n' >"$nested_archive_file_target/openSpec/changes/archive"
 assert_unsafe_install_rejected 'nested-archive-file' "$nested_archive_file_target" 'openSpec/changes/archive'
+
+skill_parent_link_target="$tmp_root/skill-parent-link-target"
+skill_parent_link_external="$tmp_root/skill-parent-link-external"
+mkdir -p "$skill_parent_link_target" "$skill_parent_link_external"
+ln -s "$skill_parent_link_external" "$skill_parent_link_target/.agents"
+assert_unsafe_install_rejected 'skill-parent-link' "$skill_parent_link_target" '.agents' "$skill_parent_link_external"
 
 (
   cd "$project_root"

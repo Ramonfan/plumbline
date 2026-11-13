@@ -65,6 +65,26 @@ for source in "${template_sources[@]}"; do
   fi
 done
 
+for tree_index in "${!template_tree_sources[@]}"; do
+  tree="$template_root/${template_tree_sources[$tree_index]}"
+  if [[ ! -d "$tree" ]]; then
+    printf 'Template directory is missing: %s\n' "$tree" >&2
+    exit 70
+  fi
+  if [[ -z "$(list_tree_files "$tree")" ]]; then
+    printf 'Template directory is empty: %s\n' "$tree" >&2
+    exit 70
+  fi
+  if [[ "$tree_index" -eq 0 ]]; then
+    canonical_only='true'
+  else
+    canonical_only='false'
+  fi
+  if ! validate_template_tree "$tree" "$canonical_only"; then
+    exit 70
+  fi
+done
+
 safety_paths=()
 for destination in "${installed_destinations[@]}"; do
   relative_parent=${destination%/*}
@@ -72,6 +92,16 @@ for destination in "${installed_destinations[@]}"; do
     safety_paths+=("$relative_parent")
   fi
 done
+for tree_destination in "${installed_tree_destinations[@]}"; do
+  tree_parent=${tree_destination%/*}
+  ancestor=''
+  IFS='/' read -r -a tree_parts <<<"$tree_parent"
+  for part in "${tree_parts[@]}"; do
+    ancestor=${ancestor:+$ancestor/}$part
+    safety_paths+=("$ancestor")
+  done
+done
+
 for directory_destination in "${installed_directories[@]}"; do
   safety_paths+=("$directory_destination")
 done
@@ -116,6 +146,12 @@ for destination in "${installed_destinations[@]}"; do
     conflicts+=("$destination")
   fi
 done
+for tree_destination in "${installed_tree_destinations[@]}"; do
+  destination_path="$target_root/$tree_destination"
+  if [[ -e "$destination_path" || -L "$destination_path" ]]; then
+    conflicts+=("$tree_destination")
+  fi
+done
 
 if ((${#conflicts[@]} > 0)); then
   printf 'Installation stopped. Existing destination files were found:\n' >&2
@@ -131,6 +167,13 @@ printf 'Planned files:\n'
 for destination in "${installed_destinations[@]}"; do
   printf '  - %s\n' "$destination"
 done
+for tree_index in "${!template_tree_sources[@]}"; do
+  tree_source="$template_root/${template_tree_sources[$tree_index]}"
+  tree_destination=${installed_tree_destinations[$tree_index]}
+  while IFS= read -r tree_file; do
+    printf '  - %s/%s\n' "$tree_destination" "$tree_file"
+  done < <(list_tree_files "$tree_source")
+done
 for directory_destination in "${installed_directories[@]}"; do
   printf '  - %s/ (directory)\n' "$directory_destination"
 done
@@ -145,6 +188,15 @@ for index in "${!template_sources[@]}"; do
   destination_path="$target_root/${installed_destinations[$index]}"
   mkdir -p "$(dirname "$destination_path")"
   cp "$source_path" "$destination_path"
+done
+
+for tree_index in "${!template_tree_sources[@]}"; do
+  tree_source="$template_root/${template_tree_sources[$tree_index]}"
+  tree_destination="$target_root/${installed_tree_destinations[$tree_index]}"
+  while IFS= read -r tree_file; do
+    mkdir -p "$(dirname "$tree_destination/$tree_file")"
+    cp "$tree_source/$tree_file" "$tree_destination/$tree_file"
+  done < <(list_tree_files "$tree_source")
 done
 
 for directory_destination in "${installed_directories[@]}"; do

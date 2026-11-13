@@ -88,6 +88,15 @@
 | 数据库或迁移 | {{MIGRATION_VALIDATION}} | {{MIGRATION_ESCALATION}} | {{MIGRATION_MANUAL_ACCEPTANCE}} |
 | 构建或部署 | {{DEPLOY_VALIDATION}} | {{DEPLOY_ESCALATION}} | {{DEPLOY_MANUAL_ACCEPTANCE}} |
 
+### 代码审查门禁（必填）
+
+- 强制独立审查条件：{{REVIEW_GATE_INDEPENDENT_TRIGGERS}}
+- 项目专属审查检查点：{{REVIEW_GATE_PROJECT_CHECKS}}
+- 审查结论记录位置：当前 change 的 `tasks.md`；补充证据保存位置：{{REVIEW_GATE_EVIDENCE_LOCATION}}
+- 门禁 skill 入口：`.agents/skills/running-code-review-gate/`（Codex/通用 agent）和 `.claude/skills/running-code-review-gate/`（Claude Code）；两边内容除 `agents/openai.yaml` 外必须一致。
+
+项目专属检查点只写在本文件和根规则，不修改通用 skill 正文。未填写强制独立审查条件时，按根规则的高风险定义执行。
+
 ## 6. 运行与验收环境（必填）
 
 | 环境 | 用途 | 可用性 | 验证方式 | 限制 |
@@ -163,6 +172,7 @@
 - [ ] 标准命令在对应环境可执行，或明确标记为不适用。
 - [ ] 人工验收责任人与环境已确认。
 - [ ] 权威工作流来源、基线和回流方式已确认。
+- [ ] 代码审查门禁的强制独立审查条件、项目专属检查点和证据位置已填写。
 - [ ] `WORKFLOW_BASELINE.yaml` 可解析，且 `workflow_version` 与本文件记录的接入基线一致。
 - [ ] 长期主规格索引已建立。
 - [ ] 禁止操作、发布和回滚规则已确认。

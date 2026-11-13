@@ -1,0 +1,6 @@
+interface:
+  display_name: "Code Review Gate"
+  short_description: "按 OpenSpec 事实和真实差异执行提交前代码审查门禁"
+  default_prompt: "使用 $running-code-review-gate 审查当前改动，并按审查契约给出 Ready 结论。"
+policy:
+  allow_implicit_invocation: true

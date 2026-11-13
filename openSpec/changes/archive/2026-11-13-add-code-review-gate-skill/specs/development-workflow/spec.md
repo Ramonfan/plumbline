@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: 提交和实现完成声明必须经过代码审查门禁
-项目 MUST 在执行代码提交、合并或声明实现完成前运行与任务风险匹配的代码审查门禁，并将审查范围、findings、验证引用和 verdict 记录在当前 OpenSpec change。该门禁不得替代用户人工验收，也不得自动获得 Git 写操作权限。
+项目 MUST 在执行代码提交、合并或声明实现完成前运行与任务风险匹配的代码审查门禁。技术审查 MUST 保持只读；用户授权记录时，MUST 把审查范围、findings、验证引用和 verdict 作为独立记录步骤写入当前 OpenSpec change。该门禁 MUST NOT 替代用户人工验收，也不得自动获得 Git 写操作权限。
 
 #### Scenario: 准备提交实现
 - **WHEN** change 的实现任务完成并准备创建提交或合并

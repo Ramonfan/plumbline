@@ -65,11 +65,15 @@
 - **THEN** verdict 可以为 `Ready: Yes`，同时保留 Minor、残留风险、未覆盖项和人工验收
 
 ### Requirement: 审查 skill 必须保持只读和权限收敛
-审查 skill MUST 只读取项目事实并生成结论，不得自动修改实现、创建提交、推送、合并、批准远程变更或扩张用户授权。审查证据 MUST 回写当前 OpenSpec change，不得形成第二事实源。
+审查 skill MUST 在技术审查阶段只读取项目事实并生成结论，不得自动修改实现、创建提交、推送、合并、批准远程变更或扩张用户授权。审查完成后，把范围、findings、验证引用和 verdict 写入当前 OpenSpec change 是用户授权后的独立记录步骤，MUST NOT 形成第二事实源。
 
 #### Scenario: 用户只请求代码审查
 - **WHEN** 用户要求审查当前改动或运行提交门禁
 - **THEN** skill 只能返回 findings 和 verdict，不得顺手修复或执行 Git 写操作
+
+#### Scenario: 用户授权记录审查结论
+- **WHEN** 审查完成后用户要求把结论写入当前 change
+- **THEN** 只追加审查记录块到该 change 的 `tasks.md`，不修改实现、不创建其他事实源
 
 #### Scenario: 用户明确要求修复 findings
 - **WHEN** 用户在审查后授权处理问题
